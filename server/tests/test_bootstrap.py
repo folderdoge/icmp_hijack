@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise private release downloads without network access or installation."""
+"""Exercise public/private release downloads without network or installation."""
 import hashlib
 import io
 import json
@@ -24,15 +24,23 @@ import json, os, pathlib, sys
 args = sys.argv[1:]
 assert "--location-trusted" not in args
 assert "test_token" not in " ".join(args)
-assert sys.stdin.read() == "Authorization: Bearer test_token\n"
 headers = [args[i + 1] for i, arg in enumerate(args[:-1]) if arg == "--header"]
+token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+header_input = sys.stdin.read()
+if token:
+    assert header_input == "Authorization: Bearer test_token\n"
+    assert "@-" in headers
+else:
+    assert header_input == ""
+    assert "@-" not in headers
+    assert not any(header.lower().startswith("authorization:") for header in headers)
 assert "X-GitHub-Api-Version: 2022-11-28" in headers
 output = pathlib.Path(args[args.index("--output") + 1])
 url = args[-1]
 scenario = os.environ["SCENARIO"]
 root = pathlib.Path(os.environ["FIXTURE_DIR"])
 with (root / "requests.jsonl").open("a") as log:
-    log.write(json.dumps({"url": url, "headers": headers}) + "\n")
+    log.write(json.dumps({"url": url, "headers": headers, "authenticated": bool(token)}) + "\n")
 if "/releases/assets/" not in url:
     assert "Accept: application/vnd.github+json" in headers
     if scenario == "auth_failure":
@@ -116,7 +124,7 @@ class BootstrapTests(unittest.TestCase):
         self.env["SCENARIO"] = scenario
         result = subprocess.run(
             ["bash", str(BOOTSTRAP), *args],
-            env=self.env, capture_output=True, text=True, timeout=15,
+            env=self.env, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=15,
         )
         self.assertEqual(list((self.root / "tmp").iterdir()), [], result.stderr)
         self.assertNotIn("test_token", result.stdout + result.stderr)
@@ -133,6 +141,7 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(actual, [arg.encode() for arg in args])
         self.assertTrue(self.requests()[0]["url"].endswith("/releases/latest"))
         self.assertEqual(len(self.requests()), 3)
+        self.assertTrue(all(request["authenticated"] for request in self.requests()))
 
     def test_explicit_tag_and_github_token_fallback(self):
         self.env.pop("GH_TOKEN")
@@ -159,11 +168,17 @@ class BootstrapTests(unittest.TestCase):
         result = self.run_bootstrap("--public-ip", "14.137.20.5", scenario="install_failure")
         self.assertEqual(result.returncode, 7, result.stderr)
 
-    def test_missing_token_stops_before_download(self):
+    def test_public_latest_without_token(self):
         self.env.pop("GH_TOKEN")
         result = self.run_bootstrap("--public-ip", "14.137.20.5")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.root / "requests.jsonl").exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.root / "installer-args").exists())
+        self.assertTrue(self.requests()[0]["url"].endswith("/releases/latest"))
+        self.assertEqual(len(self.requests()), 3)
+        for request in self.requests():
+            self.assertFalse(request["authenticated"])
+            self.assertNotIn("@-", request["headers"])
+            self.assertFalse(any(header.lower().startswith("authorization:") for header in request["headers"]))
 
     def test_help_does_not_need_auth_or_download(self):
         self.env.pop("GH_TOKEN")

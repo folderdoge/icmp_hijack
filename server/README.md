@@ -4,6 +4,14 @@
 
 ## 从私有 GitHub 仓库一键安装
 
+仓库公开后，可使用下面的免 Token 命令。把 `14.137.20.5` 改成服务器公网 IPv4：
+
+```bash
+sudo bash -c 'set -euo pipefail; apt-get update; apt-get install -y curl jq; script=$(mktemp /tmp/icmptunnel-bootstrap.XXXXXX); trap "rm -f -- \"$script\"" EXIT; curl -fsSL --proto "=https" --proto-redir "=https" https://raw.githubusercontent.com/folderdoge/icmp_hijack/main/server/bootstrap.sh -o "$script"; env -u GH_TOKEN -u GITHUB_TOKEN bash "$script" --public-ip 14.137.20.5 --port 39070'
+```
+
+脚本支持公开仓库匿名下载，也保留以下私有仓库的认证方式。
+
 下面是一个完整命令，先安装 `curl`、`jq`，再从 GitHub 下载安装脚本、最新 Release 的服务端包及 `SHA256SUMS`，校验后安装并立即启动。把 `14.137.20.5` 改成服务器的公网 IPv4；密钥不填写时自动生成。
 
 ```bash

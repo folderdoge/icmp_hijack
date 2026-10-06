@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Download private release assets, then hand off to the bundled installer.
+# Download public or authenticated private release assets, then install.
 REPOSITORY=folderdoge/icmp_hijack
 API=https://api.github.com/repos/$REPOSITORY
 TAG=
@@ -9,7 +9,7 @@ INSTALL_ARGS=()
 
 usage() {
     cat <<'EOF'
-Usage: GH_TOKEN=<GitHub token> sudo -E bash server/bootstrap.sh [options]
+Usage: sudo bash server/bootstrap.sh [options]
 
   --version TAG       Install this release (e.g. v1.0.2); default: latest.
   --tag TAG           Alias for --version.
@@ -19,8 +19,9 @@ Usage: GH_TOKEN=<GitHub token> sudo -E bash server/bootstrap.sh [options]
   --timeout SECONDS   Probe timeout, 1-60 seconds (default: 10).
   --help              Show this help.
 
-Requires Linux, root, systemd, curl, jq, tar and sha256sum. The private repository
-requires GH_TOKEN (or GITHUB_TOKEN) with Contents: read for folderdoge/icmp_hijack.
+Requires Linux, root, systemd, curl, jq, tar and sha256sum. Public repositories
+need no token. Private repositories need GH_TOKEN (or GITHUB_TOKEN) with Contents:
+read for folderdoge/icmp_hijack.
 Installer options are forwarded unchanged. Updates retain unspecified settings.
 EOF
 }
@@ -50,20 +51,22 @@ if [[ -n $TAG ]]; then
 fi
 
 TOKEN=${GH_TOKEN:-${GITHUB_TOKEN:-}}
-[[ -n $TOKEN ]] || die 'Set GH_TOKEN or GITHUB_TOKEN to read the private GitHub repository'
 [[ $TOKEN != *$'\r'* && $TOKEN != *$'\n'* ]] || die 'Invalid GitHub token'
 
 # Header input keeps the token out of curl's command-line arguments. curl strips
 # Authorization on redirects to other hosts; never use --location-trusted.
 download() {
     local accept=$1 url=$2 output=$3
-    printf 'Authorization: Bearer %s\n' "$TOKEN" |
-        curl --fail --silent --show-error --location \
-            --proto '=https' --proto-redir '=https' \
-            --connect-timeout 15 --max-time 300 --retry 2 \
-            --header @- --header "Accept: $accept" \
-            --header 'X-GitHub-Api-Version: 2022-11-28' \
-            --output "$output" "$url"
+    local -a options=(--fail --silent --show-error --location
+        --proto '=https' --proto-redir '=https'
+        --connect-timeout 15 --max-time 300 --retry 2
+        --header "Accept: $accept" --header 'X-GitHub-Api-Version: 2022-11-28'
+        --output "$output" "$url")
+    if [[ -n $TOKEN ]]; then
+        printf 'Authorization: Bearer %s\n' "$TOKEN" | curl --header @- "${options[@]}"
+    else
+        curl "${options[@]}"
+    fi
 }
 
 umask 077
@@ -75,7 +78,7 @@ else
     RELEASE_URL=$API/releases/latest
 fi
 if ! download application/vnd.github+json "$RELEASE_URL" "$WORK_DIR/release.json"; then
-    die 'Cannot read GitHub release; check the token, Contents: read permission and release tag'
+    die 'Cannot read GitHub release; check repository visibility/tag, or set a read token for a private repository'
 fi
 TAG=$(jq -er '.tag_name | select(type == "string")' "$WORK_DIR/release.json") || die 'Invalid release metadata'
 [[ $TAG =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Unsupported release tag: $TAG"
