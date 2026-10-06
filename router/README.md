@@ -14,7 +14,7 @@
 
 ## 有软件中心：离线安装
 
-在软件中心的离线安装页面上传 `icmphijack-1.0.5.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
+在软件中心的离线安装页面上传 `icmphijack-1.0.6.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
 
 软件中心页面地址是 `/Module_icmphijack.asp`。程序安装在 `/koolshare/icmp_hijack/`，生成的配置位于 `/koolshare/configs/icmp_hijack.json`。配置由页面里的 dbus 参数生成，修改配置请使用页面；直接修改 JSON 会在下次应用时被覆盖。
 
@@ -38,11 +38,11 @@ icmphijack/
 
 ## 原生梅林，没有软件中心
 
-通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmphijack-1.0.5.tar.gz`，然后 SSH 执行：
+通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmphijack-1.0.6.tar.gz`，然后 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmphijack-1.0.5.tar.gz
+tar -xzf icmphijack-1.0.6.tar.gz
 sh /tmp/icmphijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
@@ -110,6 +110,8 @@ traceroute -4 -I -n 123.100.97.2
 ```
 
 两种方式的运行日志都在：
+
+1.0.6 起，运行中的监督进程每 60 秒检查两份日志。任一文件超过 256 KiB 时原地保留末尾 128 KiB；`control.log` 每次写入后也检查。保留原文件 inode，因此不会把持续写入的进程留在隐藏旧文件上。日志在 `/tmp` 内，重启会清空，卸载会删除；周期检查不是瞬时硬上限。
 
 ```sh
 tail -n 50 /tmp/icmp_hijack/daemon.log

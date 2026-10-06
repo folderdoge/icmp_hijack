@@ -24,10 +24,32 @@ TABLE=18888
 PREF=100
 MARK=0x40000000/0x40000000
 CHAIN=ICMP_HIJACK
+LOG_LIMIT=262144
+LOG_KEEP=131072
+LOG_INTERVAL=60
 umask 077
+
+trim_log() {
+    [ -f "$1" ] || return 0
+    log_bytes=$(wc -c < "$1")
+    [ "$log_bytes" -gt "$LOG_LIMIT" ] || return 0
+    # Keep the inode: daemon and supervisor append through already-open FDs.
+    # Renaming a live log could leave an invisible file growing in /tmp.
+    log_tail=$1.trim.$$
+    if tail -c "$LOG_KEEP" "$1" > "$log_tail"; then
+        cat "$log_tail" > "$1"
+    fi
+    rm -f "$log_tail"
+}
+
+trim_logs() {
+    trim_log "$RUN/daemon.log"
+    trim_log "$RUN/control.log"
+}
 
 log() {
     printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$RUN/control.log"
+    trim_log "$RUN/control.log"
     logger -t icmp_hijack "$*"
     if [ "$SOFTCENTER" = 1 ]; then
         dbus set "icmp_hijack_status=$*"
@@ -219,11 +241,7 @@ supervise() {
     echo "$$" > "$RUN/supervisor.pid"
     trap 'kill_pidfile "$RUN/daemon.pid"; rm -f "$RUN/supervisor.pid"; exit 0' HUP INT TERM
     while enabled; do
-        # Keep logs bounded across reconnects/crashes.
-        if [ -f "$RUN/daemon.log" ] && [ "$(wc -c < "$RUN/daemon.log")" -gt 262144 ]; then
-            tail -n 300 "$RUN/daemon.log" > "$RUN/daemon.log.new"
-            mv -f "$RUN/daemon.log.new" "$RUN/daemon.log"
-        fi
+        trim_logs
         "$BIN" router --config "$CONFIG" >> "$RUN/daemon.log" 2>&1 &
         child=$!
         echo "$child" > "$RUN/daemon.pid"
@@ -236,10 +254,21 @@ supervise() {
             i=$((i + 1))
             sleep 1
         done
+        log_ticks=0
+        while kill -0 "$child" 2>/dev/null; do
+            if [ "$log_ticks" -eq 0 ]; then
+                trim_logs
+            fi
+            sleep 1
+            log_ticks=$((log_ticks + 1))
+            [ "$log_ticks" -lt "$LOG_INTERVAL" ] || log_ticks=0
+        done
         wait "$child"
         rm -f "$RUN/daemon.pid"
         log '隧道进程退出，ICMP 继续丢弃，3 秒后重启'
-        sleep 3
+        sleep 1
+        sleep 1
+        sleep 1
     done
     rm -f "$RUN/supervisor.pid"
 }

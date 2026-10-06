@@ -3,7 +3,7 @@ set -eu
 PATH=${PATH:-/bin:/usr/bin}:/bin:/usr/bin:/sbin:/usr/sbin:/koolshare/bin:/koolshare/scripts
 export PATH
 PACKAGE=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
-VERSION=1.0.5
+VERSION=1.0.6
 # shellcheck disable=SC1091
 . "$PACKAGE/scripts/commands.sh"
 

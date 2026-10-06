@@ -86,6 +86,7 @@ def main():
         control = home / "icmp_hijack.sh"
         script = (PROJECT / "router/scripts/icmp_hijack.sh").read_text()
         script = script.replace("/jffs/icmp_hijack", str(home)).replace("/tmp/icmp_hijack", str(runtime))
+        script = script.replace("LOG_INTERVAL=60", "LOG_INTERVAL=1") # accelerated log-maintenance fixture
         if os.environ.get("ICMPTUNNEL_TEST_BUSYBOX") == "1":
             script = script.replace("#!/bin/sh", "#!" + os.environ["ICMPTUNNEL_TEST_SHELL"] + " ash", 1)
         control.write_text(script)
@@ -154,6 +155,17 @@ def main():
             assert run("ping", "-n", "-c", "1", "-W", "2", "10.10.0.2", ns=names["pc"]).returncode == 0
             print("PASS: local router ping, real remote path, ping destination/server")
 
+            control_log = runtime / "control.log"
+            inode_before = (log_path.stat().st_ino, control_log.stat().st_ino)
+            for file in (log_path, control_log):
+                with file.open("ab") as output:
+                    output.write(b"old diagnostic data\n" * 18000)
+                    output.write(b"retained-log-marker\n")
+            wait_for(lambda: log_path.stat().st_size <= 132000 and control_log.stat().st_size <= 132000, "Live log maintenance did not trim both files", 6)
+            assert (log_path.stat().st_ino, control_log.stat().st_ino) == inode_before
+            assert "retained-log-marker" in log_path.read_text() and "retained-log-marker" in control_log.read_text()
+            print("PASS: live daemon/control logs trimmed to recent 128 KiB without replacing inode")
+
             procs = [subprocess.Popen(["ip", "netns", "exec", names["pc"], "ping", "-n", "-I", src, "-e", "4242", "-c", "3", "-W", "2", "10.30.0.2"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for src in ("192.168.50.100", "192.168.50.101")]
             for proc in procs:
                 output, errors = proc.communicate(timeout=10)
@@ -193,6 +205,7 @@ def main():
             assert run("ping", "-n", "-c", "1", "-W", "2", "10.30.0.2", ns=names["pc"]).returncode == 0
             print("PASS: firewall refresh")
 
+            previous_connections = log_path.read_text().count("tunnel connected")
             server.terminate()
             server.wait(timeout=5)
             assert run("ping", "-n", "-c", "1", "-W", "1", "10.30.0.2", ns=names["pc"], check=False).returncode != 0
@@ -209,7 +222,7 @@ def main():
             server_config.write_text(json.dumps(invalid_config))
             print("PASS: incorrect shared key => authentication failure and drop")
             server = start_server()
-            wait_for(lambda: log_path.read_text().count("tunnel connected") >= 2, "Reconnect failed", 20)
+            wait_for(lambda: log_path.read_text().count("tunnel connected") > previous_connections, "Reconnect failed", 20)
             assert run("ping", "-n", "-c", "1", "-W", "2", "10.30.0.2", ns=names["pc"]).returncode == 0
             print("PASS: reconnect")
 

@@ -1,5 +1,11 @@
 # 验证记录
 
+## 1.0.6 路由器日志限制
+
+原实现仅在 daemon 启动前检查 daemon.log，持续断线重连不会触发；control.log 无上限。改为已有 supervisor 在子进程运行时每 60 秒检查两份日志，超过 256 KiB 时原地保留末尾 128 KiB，控制日志另在每次写入后检查。未增加 cron 或独立监护进程。
+
+真实 namespace + Merlin 配置的 BusyBox ash 集成测试将周期加速为 1 秒，在隧道运行时给两份日志追加超过阈值的数据；验证保留末尾标记、大小降到约 128 KiB、inode 不变。随后实际断线/重连的新记录仍写入可见日志，其他转发与停止/卸载测试通过。直接子进程退出后的 ash 轮询可正常结束，wait 能取回退出码，TERM 响应约一秒。
+
 ## 1.0.5 软件中心卡片
 
 使用软件中心前端相同的注册解析逻辑重现：`softcenter_module_icmp_hijack_install` 被读成模块 `icmp` 的 `hijack_install`，由于没有 `install` 字段被删掉。Node 回归测试确认实际新版安装器生成 `icmphijack` 的卡片，并匹配页面、图标及卸载入口。
