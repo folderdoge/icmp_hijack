@@ -1,0 +1,80 @@
+#!/bin/sh
+set -eu
+PACKAGE=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
+VERSION=1.0.2
+
+# Some ASUS firmware omits id. Read the effective UID with shell builtins.
+ROOT_UID=
+while read -r status_field _real_uid effective_uid _rest; do
+    case "$status_field" in Uid:) ROOT_UID=$effective_uid; break;; esac
+done < /proc/self/status
+[ "$ROOT_UID" = 0 ] || { echo 'Run as root.' >&2; exit 1; }
+for tool in ip iptables nvram awk; do
+    command -v "$tool" >/dev/null 2>&1 || { echo "Missing command: $tool" >&2; exit 1; }
+done
+[ "$(nvram get jffs2_scripts)" = 1 ] || {
+    echo '请先在 系统管理 → 系统设置 中启用 JFFS 自定义脚本。' >&2
+    exit 1
+}
+case "$(uname -m)" in
+    armv7*|armv8l) ARCH=armv7;;
+    aarch64|arm64) ARCH=armv8;;
+    *) echo 'Only ARMv7/ARMv8 Asuswrt-Merlin is supported.' >&2; exit 1;;
+esac
+SOURCE=$PACKAGE/bin/icmptunnel-$ARCH
+[ -f "$SOURCE" ] || { echo "Missing binary: $SOURCE" >&2; exit 1; }
+
+if [ -f /koolshare/scripts/base.sh ] && command -v dbus >/dev/null 2>&1; then
+    ROOT=/koolshare/icmp_hijack
+    CONFIG=/koolshare/configs/icmp_hijack.json
+    SOFTCENTER=1
+else
+    ROOT=/jffs/icmp_hijack
+    CONFIG=$ROOT/config.json
+    SOFTCENTER=0
+fi
+if [ -x "$ROOT/icmp_hijack.sh" ]; then
+    "$ROOT/icmp_hijack.sh" shutdown
+fi
+mkdir -p "$ROOT/bin" "$(dirname "$CONFIG")"
+chmod 700 "$ROOT"
+cp "$SOURCE" "$ROOT/bin/icmptunnel"
+cp "$PACKAGE/scripts/icmp_hijack.sh" "$ROOT/icmp_hijack.sh"
+cp "$PACKAGE/scripts/hooks.sh" "$ROOT/hooks.sh"
+cp "$PACKAGE/uninstall.sh" "$ROOT/uninstall.sh"
+chmod 755 "$ROOT/bin/icmptunnel" "$ROOT/icmp_hijack.sh" "$ROOT/uninstall.sh"
+chmod 644 "$ROOT/hooks.sh"
+
+# shellcheck disable=SC1091
+. "$ROOT/hooks.sh"
+if ! hooks_install "$ROOT/icmp_hijack.sh"; then
+    echo 'Installing event hooks failed. Running uninstall to remove this installation.' >&2
+    "$ROOT/uninstall.sh"
+    exit 1
+fi
+
+if [ "$SOFTCENTER" = 1 ]; then
+    mkdir -p /koolshare/webs /koolshare/res
+    cp "$PACKAGE/scripts/icmp_hijack_config.sh" /koolshare/scripts/icmp_hijack_config.sh
+    cp "$PACKAGE/webs/Module_icmp_hijack.asp" /koolshare/webs/Module_icmp_hijack.asp
+    cp "$PACKAGE/res/icon-icmp_hijack.png" /koolshare/res/icon-icmp_hijack.png
+    cp "$PACKAGE/uninstall.sh" /koolshare/scripts/uninstall_icmp_hijack.sh
+    chmod 755 /koolshare/scripts/icmp_hijack_config.sh /koolshare/scripts/uninstall_icmp_hijack.sh
+    dbus set "softcenter_module_icmp_hijack_name=icmp_hijack"
+    dbus set "softcenter_module_icmp_hijack_title=ICMP TCP 隧道"
+    dbus set "softcenter_module_icmp_hijack_description=LAN ICMP 经 TCP 在远端落地"
+    dbus set "softcenter_module_icmp_hijack_version=$VERSION"
+    dbus set softcenter_module_icmp_hijack_install=1
+    dbus set "icmp_hijack_version=$VERSION"
+    [ -n "$(dbus get icmp_hijack_port)" ] || dbus set icmp_hijack_port=39070
+    [ -n "$(dbus get icmp_hijack_enable)" ] || dbus set icmp_hijack_enable=0
+    "$ROOT/icmp_hijack.sh" start
+    echo '安装完成：软件中心 → ICMP TCP 隧道。配置 IPv4、端口、64 位 hex 密钥后开启。'
+else
+    if [ ! -e "$CONFIG" ]; then
+        umask 077
+        printf '{"server":"14.137.20.5","port":39070,"key":"REPLACE_WITH_64_HEX_CHARACTERS","interface":"icmptun0"}\n' > "$CONFIG"
+    fi
+    "$ROOT/icmp_hijack.sh" start
+    echo "安装完成：编辑 $CONFIG，执行 $ROOT/icmp_hijack.sh enable。"
+fi

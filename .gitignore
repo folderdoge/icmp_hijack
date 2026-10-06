@@ -1,0 +1,6 @@
+bin/
+dist/
+router/bin/
+__pycache__/
+*.log
+*.test

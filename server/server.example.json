@@ -1,0 +1,6 @@
+{
+  "listen": ":39070",
+  "key": "REPLACE_WITH_64_HEX_CHARACTERS",
+  "public_ip": "14.137.20.5",
+  "timeout_seconds": 10
+}
