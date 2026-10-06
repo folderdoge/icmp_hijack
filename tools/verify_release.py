@@ -12,23 +12,23 @@ DIST = ROOT / "dist"
 
 def main():
     manifest = (DIST / "SHA256SUMS").read_text().splitlines()
-    router_name = next(line.split()[1] for line in manifest if line.split()[1].startswith("icmp_hijack-"))
-    match = re.fullmatch(r"icmp_hijack-([0-9.]+)\.tar\.gz", router_name)
+    router_name = next(line.split()[1] for line in manifest if line.split()[1].startswith("icmphijack-"))
+    match = re.fullmatch(r"icmphijack-([0-9.]+)\.tar\.gz", router_name)
     assert match, "unrecognized router release filename"
     version = match.group(1)
     for line in manifest:
         expected, name = line.split()
         assert hashlib.sha256((DIST / name).read_bytes()).hexdigest() == expected, name
     specifications = {
-        f"icmp_hijack-{version}.tar.gz": {
-            "icmp_hijack/.valid": None,
-            "icmp_hijack/install.sh": None,
-            "icmp_hijack/uninstall.sh": None,
-            "icmp_hijack/scripts/commands.sh": None,
-            "icmp_hijack/bin/icmptunnel-armv7": 40,
-            "icmp_hijack/bin/icmptunnel-armv8": 183,
-            "icmp_hijack/webs/Module_icmp_hijack.asp": None,
-            "icmp_hijack/res/icon-icmp_hijack.png": None,
+        f"icmphijack-{version}.tar.gz": {
+            "icmphijack/.valid": None,
+            "icmphijack/install.sh": None,
+            "icmphijack/uninstall.sh": None,
+            "icmphijack/scripts/commands.sh": None,
+            "icmphijack/bin/icmptunnel-armv7": 40,
+            "icmphijack/bin/icmptunnel-armv8": 183,
+            "icmphijack/webs/Module_icmphijack.asp": None,
+            "icmphijack/res/icon-icmphijack.png": None,
         },
         f"icmptunnel-server-{version}.tar.gz": {
             "icmptunnel-server/server/install.sh": None,
@@ -63,10 +63,10 @@ def main():
                 if filename.endswith(".sh"):
                     data = tar.extractfile(member).read()
                     assert data.startswith(b"#!") and b"\r" not in data and not data.startswith(b"\xef\xbb\xbf"), filename
-            if name.startswith("icmp_hijack-"):
-                marker = tar.extractfile(members["icmp_hijack/.valid"]).read()
+            if name.startswith("icmphijack-"):
+                marker = tar.extractfile(members["icmphijack/.valid"]).read()
                 assert marker == b"hnd\n", "HND offline platform marker missing/incorrect"
-                install = tar.extractfile(members["icmp_hijack/install.sh"]).read()
+                install = tar.extractfile(members["icmphijack/install.sh"]).read()
                 assert f"VERSION={version}\n".encode() in install, "package/installer version mismatch"
                 for forbidden in (b"detect_package", b"ks_tar_install"):
                     assert forbidden not in install, "Software Center rejects this token in install.sh"

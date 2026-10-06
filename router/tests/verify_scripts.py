@@ -219,8 +219,13 @@ def main():
         run(package / 'install.sh')
         root = temp / 'koolshare/icmp_hijack'
         service = root / 'icmp_hijack.sh'
-        assert (temp / 'koolshare/webs/Module_icmp_hijack.asp').exists()
+        assert (temp / 'koolshare/webs/Module_icmphijack.asp').exists()
+        assert (temp / 'koolshare/res/icon-icmphijack.png').exists()
+        assert (center_scripts / 'uninstall_icmphijack.sh').exists()
         configured = read()
+        assert configured['dbus']['softcenter_module_icmphijack_name'] == 'icmphijack'
+        assert configured['dbus']['softcenter_module_icmphijack_install'] == '4'
+        assert configured['dbus']['softcenter_module_icmphijack_home_url'] == 'Module_icmphijack.asp'
         configured['dbus'].update({'icmp_hijack_enable':'1', 'icmp_hijack_server':'014.137.20.5',
                                   'icmp_hijack_port':'01234', 'icmp_hijack_key':'f'*64})
         statefile.write_text(json.dumps(configured))
@@ -233,10 +238,41 @@ def main():
         run(service, 'start', fail=True)
         assert json.loads(configfile.read_text()) == {'server':'14.137.20.5', 'port':1234, 'key':'f'*64, 'interface':'icmptun0'}
         assert configfile.stat().st_mode & 0o777 == 0o600
-        run(root / 'uninstall.sh')
+        # Recreate the already-installed 1.0.4 layout and exercise the in-place
+        # card repair plus its compatibility uninstaller, without reinstalling.
+        saved_config = configfile.read_bytes()
+        old_registry = read()
+        for field in ('name', 'title', 'description', 'version', 'install'):
+            old_registry['dbus']['softcenter_module_icmp_hijack_' + field] = old_registry['dbus'].pop('softcenter_module_icmphijack_' + field)
+        old_registry['dbus']['softcenter_module_icmp_hijack_name'] = 'icmp_hijack'
+        old_registry['dbus']['softcenter_module_icmp_hijack_install'] = '1'
+        old_registry['dbus'].pop('softcenter_module_icmphijack_home_url')
+        statefile.write_text(json.dumps(old_registry))
+        (temp / 'koolshare/webs/Module_icmphijack.asp').rename(temp / 'koolshare/webs/Module_icmp_hijack.asp')
+        (temp / 'koolshare/res/icon-icmphijack.png').rename(temp / 'koolshare/res/icon-icmp_hijack.png')
+        (center_scripts / 'uninstall_icmphijack.sh').rename(center_scripts / 'uninstall_icmp_hijack.sh')
+        old_uninstall = (source / 'tests/fixtures/legacy_uninstall_1_0_4.sh').read_text()
+        for old_path in ('/koolshare', '/jffs', '/tmp/icmp_hijack', '/dev/net/tun'):
+            old_uninstall = old_uninstall.replace(old_path, str(temp / old_path.lstrip('/')))
+        old_uninstall = old_uninstall.replace('/proc/self/status', str(statusfile))
+        if os.environ.get('ICMPTUNNEL_TEST_BUSYBOX') == '1':
+            old_uninstall = old_uninstall.replace('#!/bin/sh', '#!' + test_shell + ' ash', 1)
+        (root / 'uninstall.sh').write_text(old_uninstall)
+        (root / 'uninstall.sh').chmod(0o755)
+        run(package / 'repair_center.sh')
+        run(package / 'repair_center.sh')
+        repaired = read()['dbus']
+        assert repaired['softcenter_module_icmphijack_name'] == 'icmphijack'
+        assert repaired['softcenter_module_icmphijack_install'] == '4'
+        assert repaired['softcenter_module_icmphijack_home_url'] == 'Module_icmp_hijack.asp'
+        assert configfile.read_bytes() == saved_config
+        assert repaired['icmp_hijack_enable'] == '1'
+        run(center_scripts / 'uninstall_icmphijack.sh')
         assert not root.exists() and not configfile.exists()
         assert not (center_scripts / 'icmp_hijack_config.sh').exists()
-        assert not (center_scripts / 'uninstall_icmp_hijack.sh').exists()
+        assert not (center_scripts / 'uninstall_icmphijack.sh').exists()
+        assert not (temp / 'koolshare/webs/Module_icmphijack.asp').exists()
+        assert not (temp / 'koolshare/res/icon-icmphijack.png').exists()
         assert not (temp / 'koolshare/webs/Module_icmp_hijack.asp').exists()
         assert not (temp / 'koolshare/res/icon-icmp_hijack.png').exists()
         assert (jffs / 'services-start').read_text() == original
@@ -246,7 +282,7 @@ def main():
         if os.environ.get('ICMPTUNNEL_TEST_BUSYBOX') == '1':
             probe = subprocess.run(shell_args + ['-c', 'command -v iptables'], env=env, capture_output=True, text=True)
             assert probe.returncode == 127 and 'command' in probe.stderr, probe.stderr
-        print('PASS: no id/ip required; non-root refusal; both installers; hooks preserved; repeatable rules; blackhole; failed-reload guard; priority conflict; config validation; clean uninstall')
+        print('PASS: no id/ip required; both installers; hooks/rules preserved; configuration; in-place card repair; canonical and legacy uninstall cleanup')
 
 
 if __name__ == '__main__': main()

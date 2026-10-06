@@ -3,7 +3,7 @@ set -eu
 PATH=${PATH:-/bin:/usr/bin}:/bin:/usr/bin:/sbin:/usr/sbin:/koolshare/bin:/koolshare/scripts
 export PATH
 PACKAGE=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
-VERSION=1.0.4
+VERSION=1.0.5
 # shellcheck disable=SC1091
 . "$PACKAGE/scripts/commands.sh"
 
@@ -61,15 +61,20 @@ fi
 if [ "$SOFTCENTER" = 1 ]; then
     mkdir -p /koolshare/webs /koolshare/res
     cp "$PACKAGE/scripts/icmp_hijack_config.sh" /koolshare/scripts/icmp_hijack_config.sh
-    cp "$PACKAGE/webs/Module_icmp_hijack.asp" /koolshare/webs/Module_icmp_hijack.asp
-    cp "$PACKAGE/res/icon-icmp_hijack.png" /koolshare/res/icon-icmp_hijack.png
-    cp "$PACKAGE/uninstall.sh" /koolshare/scripts/uninstall_icmp_hijack.sh
-    chmod 755 /koolshare/scripts/icmp_hijack_config.sh /koolshare/scripts/uninstall_icmp_hijack.sh
-    dbus set "softcenter_module_icmp_hijack_name=icmp_hijack"
-    dbus set "softcenter_module_icmp_hijack_title=ICMP TCP 隧道"
-    dbus set "softcenter_module_icmp_hijack_description=LAN ICMP 经 TCP 在远端落地"
-    dbus set "softcenter_module_icmp_hijack_version=$VERSION"
-    dbus set softcenter_module_icmp_hijack_install=1
+    cp "$PACKAGE/webs/Module_icmphijack.asp" /koolshare/webs/Module_icmphijack.asp
+    cp "$PACKAGE/res/icon-icmphijack.png" /koolshare/res/icon-icmphijack.png
+    cp "$PACKAGE/uninstall.sh" /koolshare/scripts/uninstall_icmphijack.sh
+    chmod 755 /koolshare/scripts/icmp_hijack_config.sh /koolshare/scripts/uninstall_icmphijack.sh
+    dbus list softcenter_module_icmp_hijack_ | while IFS='=' read -r name _value; do
+        case "$name" in softcenter_module_icmp_hijack_*) dbus remove "$name";; esac
+    done
+    rm -f /koolshare/webs/Module_icmp_hijack.asp /koolshare/res/icon-icmp_hijack.png /koolshare/scripts/uninstall_icmp_hijack.sh
+    dbus set "softcenter_module_icmphijack_name=icmphijack"
+    dbus set "softcenter_module_icmphijack_title=ICMP TCP 隧道"
+    dbus set "softcenter_module_icmphijack_description=LAN ICMP 经 TCP 在远端落地"
+    dbus set "softcenter_module_icmphijack_version=$VERSION"
+    dbus set "softcenter_module_icmphijack_home_url=Module_icmphijack.asp"
+    dbus set softcenter_module_icmphijack_install=4
     dbus set "icmp_hijack_version=$VERSION"
     [ -n "$(dbus get icmp_hijack_port)" ] || dbus set icmp_hijack_port=39070
     [ -n "$(dbus get icmp_hijack_enable)" ] || dbus set icmp_hijack_enable=0

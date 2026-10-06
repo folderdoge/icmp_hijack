@@ -24,7 +24,7 @@
 <script>
 function menu_hook() {
     tabtitle[tabtitle.length - 1] = ["", "ICMP TCP 隧道"];
-    tablink[tablink.length - 1] = ["", "Module_icmp_hijack.asp"];
+    tablink[tablink.length - 1] = ["", "Module_icmphijack.asp"];
 }
 function statusText(text) { document.getElementById('status').textContent = text; }
 function refreshStatus() {

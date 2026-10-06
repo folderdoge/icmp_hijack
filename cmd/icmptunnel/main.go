@@ -14,7 +14,7 @@ import (
 	"syscall"
 )
 
-var version = "1.0.4"
+var version = "1.0.5"
 
 type config struct {
 	Server         string `json:"server,omitempty"`

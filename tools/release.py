@@ -45,7 +45,7 @@ def files(directory):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--go", default="go")
-    parser.add_argument("--version", default="1.0.4")
+    parser.add_argument("--version", default="1.0.5")
     args = parser.parse_args()
     if not all(c.isdigit() or c == "." for c in args.version):
         parser.error("Version must be digits and dots")
@@ -72,8 +72,8 @@ def main():
     shutil.copyfile(ROOT / "bin/linux-arm64/icmptunnel", ROOT / "router/bin/icmptunnel-armv8")
     dist = ROOT / "dist"
     dist.mkdir(exist_ok=True)
-    router_entries = [("icmp_hijack/" + p.relative_to(ROOT / "router").as_posix(), p) for p in files(ROOT / "router") if "tests" not in p.parts and p.name != "make_icon.py"]
-    archive(dist / f"icmp_hijack-{args.version}.tar.gz", router_entries)
+    router_entries = [("icmphijack/" + p.relative_to(ROOT / "router").as_posix(), p) for p in files(ROOT / "router") if "tests" not in p.parts and p.name != "make_icon.py"]
+    archive(dist / f"icmphijack-{args.version}.tar.gz", router_entries)
     server_entries = [("icmptunnel-server/" + p.relative_to(ROOT).as_posix(), p) for p in files(ROOT / "server") if "tests" not in p.relative_to(ROOT / "server").parts]
     for directory in ("linux-amd64", "linux-arm64"):
         path = ROOT / "bin" / directory / "icmptunnel"
@@ -88,7 +88,7 @@ def main():
         if (ROOT / name).exists():
             source_entries.append(("icmptunnel/" + name, ROOT / name))
     archive(dist / f"icmptunnel-source-{args.version}.tar.gz", source_entries)
-    names = (f"icmp_hijack-{args.version}.tar.gz", f"icmptunnel-server-{args.version}.tar.gz", f"icmptunnel-source-{args.version}.tar.gz")
+    names = (f"icmphijack-{args.version}.tar.gz", f"icmptunnel-server-{args.version}.tar.gz", f"icmptunnel-source-{args.version}.tar.gz")
     (dist / "SHA256SUMS").write_text("".join(f"{hashlib.sha256((dist / name).read_bytes()).hexdigest()}  {name}\n" for name in names), encoding="utf-8")
     print("Release archives ready in", dist)
 

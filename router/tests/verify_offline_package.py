@@ -18,7 +18,7 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULE = "icmp_hijack"
+MODULE = "icmphijack"
 UPSTREAM_BASE = "https://github.com/koolshare/rogsoft/blob/"
 SOURCES = {
     "historic-2023": (
@@ -130,7 +130,7 @@ def main():
     args = parser.parse_args()
     if args.archive is None:
         names = [line.split()[1] for line in (ROOT / "dist/SHA256SUMS").read_text().splitlines()]
-        name = next(name for name in names if name.startswith("icmp_hijack-") and name.endswith(".tar.gz"))
+        name = next(name for name in names if name.startswith("icmphijack-") and name.endswith(".tar.gz"))
         args.archive = ROOT / "dist" / name
     shell = shutil.which("sh")
     if shell is None:
@@ -153,7 +153,7 @@ def main():
             )
             script.write_text(
                 'SCRIPT_AB_DIR=$1\nINSTALL_SCRIPT=$1/install.sh\n'
-                'MOCK_ODMPID=$2\nMODULE_NAME=icmp_hijack\n'
+                'MOCK_ODMPID=$2\nMODULE_NAME=icmphijack\n'
                 'nvram() { printf "%s\\n" "$MOCK_ODMPID"; }\n'
                 'echo_date() { printf "%s\\n" "$*"; }\n'
                 'exit_tar_install() { exit "$1"; }\n'

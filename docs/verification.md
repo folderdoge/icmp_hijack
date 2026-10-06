@@ -1,5 +1,15 @@
 # 验证记录
 
+## 1.0.5 软件中心卡片
+
+使用软件中心前端相同的注册解析逻辑重现：`softcenter_module_icmp_hijack_install` 被读成模块 `icmp` 的 `hijack_install`，由于没有 `install` 字段被删掉。Node 回归测试确认实际新版安装器生成 `icmphijack` 的卡片，并匹配页面、图标及卸载入口。
+
+在精简 BusyBox fixture 中模拟已安装 1.0.4 的真实旧卸载脚本及注册布局，原地修复执行两次均通过，配置文件字节和启用状态不变；从新卡片对应卸载入口卸载后，新旧 metadata、页面、图标、入口、配置和进程/规则均清理。新版独立安装及 HND 离线入口检查也通过。
+
+```sh
+node router/tests/verify_center_registry.js
+```
+
 ## 1.0.4 梅林 ash 命令检测
 
 对照用户指定的 fancyss 安装脚本，核对 Merlin 388 BusyBox 配置，确认 `ASH_CMDCMD` 关闭。此前测试只使用常规 Linux shell，未覆盖这个差异，导致 `command -v` 将已有工具误报为缺失。

@@ -14,34 +14,36 @@
 
 ## 有软件中心：离线安装
 
-在软件中心的离线安装页面上传 `icmp_hijack-1.0.4.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
+在软件中心的离线安装页面上传 `icmphijack-1.0.5.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
 
-软件中心页面地址是 `/Module_icmp_hijack.asp`。程序安装在 `/koolshare/icmp_hijack/`，生成的配置位于 `/koolshare/configs/icmp_hijack.json`。配置由页面里的 dbus 参数生成，修改配置请使用页面；直接修改 JSON 会在下次应用时被覆盖。
+软件中心页面地址是 `/Module_icmphijack.asp`。程序安装在 `/koolshare/icmp_hijack/`，生成的配置位于 `/koolshare/configs/icmp_hijack.json`。配置由页面里的 dbus 参数生成，修改配置请使用页面；直接修改 JSON 会在下次应用时被覆盖。
 
-安装包必须使用以下结构，最外层目录名为 `icmp_hijack`，不能再套一层目录：
+安装包必须使用以下结构，最外层目录名为 `icmphijack`，不能再套一层目录：
 
 ```text
-icmp_hijack/
+icmphijack/
   .valid                    # 内容为 hnd，软件中心安装前检查
   install.sh
   uninstall.sh
   bin/icmptunnel-armv7
   bin/icmptunnel-armv8
   scripts/...
-  webs/Module_icmp_hijack.asp
-  res/icon-icmp_hijack.png
+  webs/Module_icmphijack.asp
+  res/icon-icmphijack.png
 ```
 
-1.0.4 不依赖梅林可能关闭的 `command` 内建命令，直接检查 PATH 中的可执行文件；涵盖安装依赖、软件中心识别和 IPv6 工具检测。现有静态程序仍内置所需路由操作，`id` 与 `.valid` 修复继续保留。安装无需 Entware。
+1.0.5 的软件中心标识是 `icmphijack`，因为中心按下划线拆注册键，旧的 `icmp_hijack` 会被误解析。配置前缀和运行目录继续保留旧名称，不改动已有配置。
+
+已安装 1.0.4 时，将 `repair_center.sh` 上传为 `/tmp/repair_center.sh`，执行 `sh /tmp/repair_center.sh` 后刷新软件中心即可补回卡片，不需要重装。修复脚本同时补齐正确图标及卸载入口，保留原配置和启用状态。
 
 ## 原生梅林，没有软件中心
 
-通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmp_hijack-1.0.4.tar.gz`，然后 SSH 执行：
+通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmphijack-1.0.5.tar.gz`，然后 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmp_hijack-1.0.4.tar.gz
-sh /tmp/icmp_hijack/install.sh
+tar -xzf icmphijack-1.0.5.tar.gz
+sh /tmp/icmphijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
 
@@ -149,7 +151,7 @@ iptables -t filter -L ICMP_HIJACK -n -v
 卸载优先使用软件中心的卸载按钮，也可以执行：
 
 ```sh
-/koolshare/scripts/uninstall_icmp_hijack.sh
+/koolshare/scripts/uninstall_icmphijack.sh
 ```
 
 原生梅林卸载：

@@ -33,11 +33,8 @@ if [ "$SOFTCENTER" = 1 ]; then
     dbus list softcenter_module_icmp_hijack_ | while IFS='=' read -r name _value; do
         case "$name" in softcenter_module_icmp_hijack_*) dbus remove "$name";; esac
     done
-    dbus list softcenter_module_icmphijack_ | while IFS='=' read -r name _value; do
-        case "$name" in softcenter_module_icmphijack_*) dbus remove "$name";; esac
-    done
-    rm -f /koolshare/scripts/icmp_hijack_config.sh /koolshare/scripts/uninstall_icmp_hijack.sh /koolshare/scripts/uninstall_icmphijack.sh
-    rm -f /koolshare/webs/Module_icmp_hijack.asp /koolshare/res/icon-icmp_hijack.png /koolshare/webs/Module_icmphijack.asp /koolshare/res/icon-icmphijack.png
+    rm -f /koolshare/scripts/icmp_hijack_config.sh /koolshare/scripts/uninstall_icmp_hijack.sh
+    rm -f /koolshare/webs/Module_icmp_hijack.asp /koolshare/res/icon-icmp_hijack.png
 fi
 rm -f "$CONFIG" "$CONFIG.new"
 # Fixed, module-owned directories; no wildcard deletion of shared paths.

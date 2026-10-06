@@ -26,4 +26,4 @@ png = b'\x89PNG\r\n\x1a\n'
 png += chunk(b'IHDR', struct.pack('!IIBBBBB', size, size, 8, 6, 0, 0, 0))
 png += chunk(b'IDAT', zlib.compress(b''.join(rows)))
 png += chunk(b'IEND', b'')
-Path(__file__).with_name('icon-icmp_hijack.png').write_bytes(png)
+Path(__file__).with_name('icon-icmphijack.png').write_bytes(png)

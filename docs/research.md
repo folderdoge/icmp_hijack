@@ -4,6 +4,8 @@
 
 ## 华硕梅林
 
+- 软件中心前端 [注册解析](https://github.com/koolshare/rogsoft/blob/a05d7b362dec0b663eb1bd94108a0d81778bba60/softcenter/softcenter/webs/Module_Softcenter.asp#L465-L487) 按 `_` 拆键并将第三段作为模块名，所以模块标识不能包含下划线。缺少解析后的 `install` 属性会被过滤。[图标与页面规则](https://github.com/koolshare/rogsoft/blob/a05d7b362dec0b663eb1bd94108a0d81778bba60/softcenter/softcenter/webs/Module_Softcenter.asp#L515-L529) 要求名称一致；1.0.5 使用 `icmphijack`，同时保留已有运行目录和配置。
+
 - 对照用户提供的 fancyss 安装脚本，其常见外部工具检测使用 `which`，直接调用固件 iptables。Merlin 388 的 [BusyBox 配置](https://github.com/RMerl/asuswrt-merlin.ng/blob/3004.388.9/release/src/router/busybox/config_base#L994-L1004) 明确关闭 `CONFIG_ASH_CMDCMD`，所以不能用 `command -v` 作为必需依赖检查。1.0.4 对所有路由器相关分支统一改为 PATH 文件检查；并使用相同 BusyBox 版本与相关 shell 开关重现和验证。
 
 - Merlin 3004.388.9 的 [Makefile](https://github.com/RMerl/asuswrt-merlin.ng/blob/3004.388.9/release/src/router/Makefile#L8450-L8452) 将 HND iproute2 安装到 `/usr/sbin/ip`；其 [BusyBox 配置](https://github.com/RMerl/asuswrt-merlin.ng/blob/3004.388.9/release/src/router/busybox/config_base#L850-L865) 没启用 `ip`，`id` 也关闭。[软件中心 base.sh](https://github.com/koolshare/rogsoft/blob/master/softcenter/softcenter/scripts/base.sh) 继承调用方 PATH，不补齐所有系统目录。`Missing command: ip` 只能证明当前 PATH 查找失败；1.0.3 补齐系统路径，并直接移除外部 ip 的运行依赖。
