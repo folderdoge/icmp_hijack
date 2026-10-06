@@ -45,7 +45,7 @@ def files(directory):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--go", default="go")
-    parser.add_argument("--version", default="1.0.3")
+    parser.add_argument("--version", default="1.0.4")
     args = parser.parse_args()
     if not all(c.isdigit() or c == "." for c in args.version):
         parser.error("Version must be digits and dots")

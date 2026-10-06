@@ -111,6 +111,8 @@ def main():
             for path in ('/koolshare', '/jffs', '/tmp/icmp_hijack', '/dev/net/tun'):
                 body = body.replace(path, str(temp / path.lstrip('/')))
             body = body.replace('/proc/self/status', str(statusfile))
+            if os.environ.get('ICMPTUNNEL_TEST_BUSYBOX') == '1':
+                body = body.replace('#!/bin/sh', '#!' + os.environ['ICMPTUNNEL_TEST_SHELL'] + ' ash', 1)
             script.write_text(body)
         binary = package / 'bin'
         binary.mkdir()
@@ -139,8 +141,10 @@ def main():
         (mockbin / 'ip').chmod(0o755)
         env = os.environ | {'PATH': str(mockbin) + ':' + os.environ['PATH'],
                             'MOCK_STATE': str(statefile), 'MOCK_ID_CALLS': str(id_calls), 'MOCK_IP_CALLS': str(ip_calls)}
+        test_shell = os.environ.get('ICMPTUNNEL_TEST_SHELL', '/bin/sh')
+        shell_args = [test_shell, 'ash'] if os.environ.get('ICMPTUNNEL_TEST_BUSYBOX') == '1' else [test_shell]
         def run(path, *args, fail=False, extra=None):
-            result = subprocess.run(['/bin/sh', str(path), *args], env=env | (extra or {}), capture_output=True, text=True)
+            result = subprocess.run(shell_args + [str(path), *args], env=env | (extra or {}), capture_output=True, text=True)
             if fail:
                 assert result.returncode != 0, result.stdout
             else:
@@ -239,6 +243,9 @@ def main():
         assert read()['dbus'] == {'unrelated_setting':'keep'}
         assert not id_calls.exists()
         assert not ip_calls.exists()
+        if os.environ.get('ICMPTUNNEL_TEST_BUSYBOX') == '1':
+            probe = subprocess.run(shell_args + ['-c', 'command -v iptables'], env=env, capture_output=True, text=True)
+            assert probe.returncode == 127 and 'command' in probe.stderr, probe.stderr
         print('PASS: no id/ip required; non-root refusal; both installers; hooks preserved; repeatable rules; blackhole; failed-reload guard; priority conflict; config validation; clean uninstall')
 
 

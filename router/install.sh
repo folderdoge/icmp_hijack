@@ -3,7 +3,9 @@ set -eu
 PATH=${PATH:-/bin:/usr/bin}:/bin:/usr/bin:/sbin:/usr/sbin:/koolshare/bin:/koolshare/scripts
 export PATH
 PACKAGE=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
-VERSION=1.0.3
+VERSION=1.0.4
+# shellcheck disable=SC1091
+. "$PACKAGE/scripts/commands.sh"
 
 # Some ASUS firmware omits id. Read the effective UID with shell builtins.
 ROOT_UID=
@@ -12,7 +14,7 @@ while read -r status_field _real_uid effective_uid _rest; do
 done < /proc/self/status
 [ "$ROOT_UID" = 0 ] || { echo 'Run as root.' >&2; exit 1; }
 for tool in iptables nvram awk; do
-    command -v "$tool" >/dev/null 2>&1 || { echo "Missing command: $tool" >&2; exit 1; }
+    has_command "$tool" || { echo "Missing command: $tool (PATH=$PATH)" >&2; exit 1; }
 done
 [ "$(nvram get jffs2_scripts)" = 1 ] || {
     echo '请先在 系统管理 → 系统设置 中启用 JFFS 自定义脚本。' >&2
@@ -26,7 +28,7 @@ esac
 SOURCE=$PACKAGE/bin/icmptunnel-$ARCH
 [ -f "$SOURCE" ] || { echo "Missing binary: $SOURCE" >&2; exit 1; }
 
-if [ -f /koolshare/scripts/base.sh ] && command -v dbus >/dev/null 2>&1; then
+if [ -f /koolshare/scripts/base.sh ] && has_command dbus; then
     ROOT=/koolshare/icmp_hijack
     CONFIG=/koolshare/configs/icmp_hijack.json
     SOFTCENTER=1

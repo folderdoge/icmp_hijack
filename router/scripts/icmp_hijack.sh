@@ -118,7 +118,7 @@ firewall() {
     # Install the direct-WAN guard first. It checks ingress, so missing MARK/rule
     # does not silently release intercepted ICMP to a real uplink.
     guard_add iptables icmp || return 1
-    if command -v ip6tables >/dev/null 2>&1; then
+    if has_command ip6tables; then
         guard_add ip6tables ipv6-icmp || return 1
     fi
     chain_new iptables filter || return 1
@@ -129,7 +129,7 @@ firewall() {
 
     # IPv6 is deliberately not tunneled. Block only routed ICMPv6; NDP and
     # pinging the router itself still use INPUT/OUTPUT normally.
-    if command -v ip6tables >/dev/null 2>&1; then
+    if has_command ip6tables; then
         chain_new ip6tables filter || return 1
         ip6tables -t filter -A "$CHAIN" -i 'br+' -p ipv6-icmp -j DROP || return 1
         jump_add ip6tables filter FORWARD || return 1
@@ -155,7 +155,7 @@ firewall() {
     jump_add iptables mangle PREROUTING || return 1
     routes || return 1
     chain_remove iptables filter FORWARD "${CHAIN}_GUARD"
-    if command -v ip6tables >/dev/null 2>&1; then
+    if has_command ip6tables; then
         chain_remove ip6tables filter FORWARD "${CHAIN}_GUARD"
     fi
 }
@@ -170,7 +170,7 @@ remove_rules() {
     chain_remove iptables nat POSTROUTING
     chain_remove iptables filter FORWARD
     chain_remove iptables filter FORWARD "${CHAIN}_GUARD"
-    if command -v ip6tables >/dev/null 2>&1; then
+    if has_command ip6tables; then
         chain_remove ip6tables filter FORWARD
         chain_remove ip6tables filter FORWARD "${CHAIN}_GUARD"
     fi

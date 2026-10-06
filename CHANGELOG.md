@@ -1,3 +1,9 @@
+# 1.0.4
+
+- 修复梅林 BusyBox 没有 `command` 内建命令时，`command -v` 将已存在的 iptables/dbus/ip6tables 错报为缺失的问题。
+- 统一使用 PATH 中可执行文件检查，覆盖安装依赖、软件中心识别及 IPv6 规则分支。
+- 对照用户提供的 fancyss 安装环境，并用关闭 `ASH_CMDCMD` 的 BusyBox 1.25.1 验证旧错误可复现、新安装/卸载流程可通过。
+
 # 1.0.3
 
 - 移除路由器对外部 `ip` 命令的依赖；已有静态程序内置本插件所需的 IPv4 rtnetlink 路由/规则操作。

@@ -24,6 +24,11 @@ ROUTER_COMMAND_ENV = None
 def run(*args, ns=None, check=True):
     argv = [str(a) for a in args]
     command_env = ROUTER_COMMAND_ENV if ns and ns.endswith("-rt") and argv[0] == "sh" else None
+    if command_env is not None and os.environ.get("ICMPTUNNEL_TEST_SHELL"):
+        shell_prefix = [os.environ["ICMPTUNNEL_TEST_SHELL"]]
+        if os.environ.get("ICMPTUNNEL_TEST_BUSYBOX") == "1":
+            shell_prefix.append("ash")
+        argv = shell_prefix + argv[1:]
     if ns:
         argv = [HOST_IP, "netns", "exec", ns] + argv
     return subprocess.run(argv, check=check, capture_output=True, text=True, env=command_env)
@@ -81,6 +86,8 @@ def main():
         control = home / "icmp_hijack.sh"
         script = (PROJECT / "router/scripts/icmp_hijack.sh").read_text()
         script = script.replace("/jffs/icmp_hijack", str(home)).replace("/tmp/icmp_hijack", str(runtime))
+        if os.environ.get("ICMPTUNNEL_TEST_BUSYBOX") == "1":
+            script = script.replace("#!/bin/sh", "#!" + os.environ["ICMPTUNNEL_TEST_SHELL"] + " ash", 1)
         control.write_text(script)
         control.chmod(0o755)
         shutil.copyfile(PROJECT / "router/scripts/commands.sh", home / "commands.sh")

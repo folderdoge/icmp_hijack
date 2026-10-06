@@ -1,4 +1,23 @@
-# 1.0.0 验证记录
+# 验证记录
+
+## 1.0.4 梅林 ash 命令检测
+
+对照用户指定的 fancyss 安装脚本，核对 Merlin 388 BusyBox 配置，确认 `ASH_CMDCMD` 关闭。此前测试只使用常规 Linux shell，未覆盖这个差异，导致 `command -v` 将已有工具误报为缺失。
+
+从 BusyBox 1.25.1 官方源码构建测试 shell，匹配梅林相关 shell 开关（关闭 command、job control、getopts、内建 echo/printf/test、64 位 shell 算术）。测试 shell 在构建缓存中，不随插件发布。`tools/build_merlin_test_shell.py` 可重建。
+
+该 shell 中旧检测对已有 iptables 精确复现误报；新检查验证可执行文件、符号链接、绝对路径，正确拒绝不存在、不可执行和目录。两种安装/卸载的完整 fixture 通过，含 dbus 模式及 IPv6 链验证。控制脚本和 supervisor 均使用此 ash 的真实五 namespace 测试通过：逐跳、客户端隔离、断线保护、重连、重载及清理正常。
+
+```sh
+ICMPTUNNEL_TEST_SHELL=/path/to/busybox-1.25.1/busybox \
+ICMPTUNNEL_TEST_BUSYBOX=1 python3 router/tests/verify_command_lookup.py
+
+ICMPTUNNEL_TEST_SHELL=/path/to/busybox-1.25.1/busybox \
+ICMPTUNNEL_TEST_BUSYBOX=1 python3 router/tests/verify_scripts.py
+
+ICMPTUNNEL_TEST_SHELL=/path/to/busybox-1.25.1/busybox \
+ICMPTUNNEL_TEST_BUSYBOX=1 sudo -E python3 tests/integration.py
+```
 
 ## 1.0.3 无外部 ip 环境
 

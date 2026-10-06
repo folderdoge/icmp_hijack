@@ -1,8 +1,8 @@
-# 梅林 ICMP TCP 隧道 · 1.0.3
+# 梅林 ICMP TCP 隧道 · 1.0.4
 
 路由器接管 LAN 经路由转发的 IPv4 ICMP，用自定义加密 TCP 协议送到 Linux 服务器。服务器真实发送 ICMP Echo 探测，并将 Echo Reply、Time Exceeded、Destination Unreachable、Parameter Problem 还原给客户端。电脑无需安装软件。
 
-1.0.3 移除外部 `ip` 依赖，现有静态程序直接完成所需路由操作，并补齐非交互式脚本的系统命令路径。此前 `id` 和 HND `.valid` 的修复继续保留；使用新版路由器包重新上传安装即可，已有服务端与新版插件协议兼容。
+1.0.4 修复梅林 BusyBox 缺少 `command` 内建命令时的依赖误判，包括 iptables、软件中心识别与 IPv6 分支。已用关闭该内建命令的 BusyBox 1.25.1 验证。此前 `id`、外部 `ip` 和 HND `.valid` 的修复继续保留；已有服务端与新版插件协议兼容。
 
 你描述的逐跳显示使用 **Windows `tracert -d`** 或 **Linux `traceroute -n -I`**；普通 `ping` 只显示目标的往返时间。
 
@@ -12,10 +12,10 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [icmp_hijack-1.0.3.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/icmp_hijack-1.0.3.tar.gz) | 路由器插件，内含 ARMv7 / ARMv8，自动选择 |
-| [icmptunnel-server-1.0.3.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/icmptunnel-server-1.0.3.tar.gz) | Linux 服务端，内含 x86_64 / aarch64，一键安装 |
-| [icmptunnel-source-1.0.3.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/icmptunnel-source-1.0.3.tar.gz) | 完整源码、测试与构建工具 |
-| [SHA256SUMS](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/SHA256SUMS) | 三个交付包的 SHA-256 |
+| [icmp_hijack-1.0.4.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.4/icmp_hijack-1.0.4.tar.gz) | 路由器插件，内含 ARMv7 / ARMv8，自动选择 |
+| [icmptunnel-server-1.0.4.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.4/icmptunnel-server-1.0.4.tar.gz) | Linux 服务端，内含 x86_64 / aarch64，一键安装 |
+| [icmptunnel-source-1.0.4.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.4/icmptunnel-source-1.0.4.tar.gz) | 完整源码、测试与构建工具 |
+| [SHA256SUMS](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.4/SHA256SUMS) | 三个交付包的 SHA-256 |
 
 ### 1. 安装服务端
 
@@ -24,7 +24,7 @@
 支持使用 systemd 的 Debian / Ubuntu 等 Linux。把服务端压缩包上传到服务器，在上传目录运行：
 
 ```sh
-tar -xzf icmptunnel-server-1.0.3.tar.gz && sudo bash icmptunnel-server/server/install.sh --public-ip 14.137.20.5 --port 39070
+tar -xzf icmptunnel-server-1.0.4.tar.gz && sudo bash icmptunnel-server/server/install.sh --public-ip 14.137.20.5 --port 39070
 ```
 
 替换成你的服务器公网 IPv4。脚本自动生成 32 字节随机密钥，并显示 **IP、TCP 端口、64 位 hex 密钥**；将这三项填入路由器。也可通过 `--key` 指定已有密钥。再次执行脚本会升级程序，保留未显式修改的配置。
@@ -43,14 +43,14 @@ journalctl -u icmptunnel-server -f
 先在路由器「系统管理 → 系统设置」启用 **JFFS 自定义脚本**。有 Koolshare 软件中心时：
 
 1. 打开软件中心的离线安装。
-2. 上传 `icmp_hijack-1.0.3.tar.gz` 并安装。
+2. 上传 `icmp_hijack-1.0.4.tar.gz` 并安装。
 3. 打开「ICMP TCP 隧道」，填入 IP / 端口 / 密钥，开启并应用。
 
 无软件中心的原生梅林：把同一个包上传到路由器 `/tmp`，通过 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmp_hijack-1.0.3.tar.gz
+tar -xzf icmp_hijack-1.0.4.tar.gz
 sh /tmp/icmp_hijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
@@ -155,7 +155,7 @@ sudo bash /usr/local/lib/icmptunnel/uninstall.sh
 ```sh
 go test ./...
 go vet ./...
-python3 tools/release.py --version 1.0.3
+python3 tools/release.py --version 1.0.4
 ```
 
 Linux 完整网络测试需要 root，以及 `ip`、`iptables`、`ip6tables`、`ping`、`traceroute`：
@@ -163,6 +163,7 @@ Linux 完整网络测试需要 root，以及 `ip`、`iptables`、`ip6tables`、`
 ```sh
 sudo python3 tests/integration.py
 python3 router/tests/verify_scripts.py
+python3 router/tests/verify_command_lookup.py
 python3 router/tests/verify_offline_package.py
 sudo python3 server/tests/test_install.py
 python3 server/tests/test_bootstrap.py

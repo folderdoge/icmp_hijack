@@ -14,7 +14,7 @@
 
 ## 有软件中心：离线安装
 
-在软件中心的离线安装页面上传 `icmp_hijack-1.0.3.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
+在软件中心的离线安装页面上传 `icmp_hijack-1.0.4.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
 
 软件中心页面地址是 `/Module_icmp_hijack.asp`。程序安装在 `/koolshare/icmp_hijack/`，生成的配置位于 `/koolshare/configs/icmp_hijack.json`。配置由页面里的 dbus 参数生成，修改配置请使用页面；直接修改 JSON 会在下次应用时被覆盖。
 
@@ -32,15 +32,15 @@ icmp_hijack/
   res/icon-icmp_hijack.png
 ```
 
-1.0.3 通过现有静态程序内置路由操作，不调用外部 `ip`，也不需要 Entware；所有入口补上固件系统命令目录。1.0.2 的无 `id` 权限检查和 1.0.1 的 `.valid` 修复继续保留。`hnd` 是软件中心平台家族标识，ARMv7/ARMv8 程序仍由安装器按架构选择；离线入口会检查实际压缩包内的隐藏文件。
+1.0.4 不依赖梅林可能关闭的 `command` 内建命令，直接检查 PATH 中的可执行文件；涵盖安装依赖、软件中心识别和 IPv6 工具检测。现有静态程序仍内置所需路由操作，`id` 与 `.valid` 修复继续保留。安装无需 Entware。
 
 ## 原生梅林，没有软件中心
 
-通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmp_hijack-1.0.3.tar.gz`，然后 SSH 执行：
+通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmp_hijack-1.0.4.tar.gz`，然后 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmp_hijack-1.0.3.tar.gz
+tar -xzf icmp_hijack-1.0.4.tar.gz
 sh /tmp/icmp_hijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
