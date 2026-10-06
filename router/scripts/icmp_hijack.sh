@@ -15,6 +15,9 @@ case "$0" in
 esac
 SELF=$ROOT/icmp_hijack.sh
 BIN=$ROOT/bin/icmptunnel
+# shellcheck disable=SC1091
+. "$ROOT/commands.sh"
+setup_commands "$BIN" || exit 1
 RUN=/tmp/icmp_hijack
 TUN=icmptun0
 TABLE=18888

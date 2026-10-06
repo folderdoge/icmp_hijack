@@ -17,13 +17,16 @@ import time
 PROJECT = Path(__file__).resolve().parents[1]
 ARCH = "arm64" if platform.machine() in ("aarch64", "arm64") else "amd64"
 BINARY = PROJECT / f"bin/linux-{ARCH}/icmptunnel"
+HOST_IP = shutil.which("ip") or "/usr/sbin/ip"
+ROUTER_COMMAND_ENV = None
 
 
 def run(*args, ns=None, check=True):
     argv = [str(a) for a in args]
+    command_env = ROUTER_COMMAND_ENV if ns and ns.endswith("-rt") and argv[0] == "sh" else None
     if ns:
-        argv = ["ip", "netns", "exec", ns] + argv
-    return subprocess.run(argv, check=check, capture_output=True, text=True)
+        argv = [HOST_IP, "netns", "exec", ns] + argv
+    return subprocess.run(argv, check=check, capture_output=True, text=True, env=command_env)
 
 
 def wait_for(predicate, message, seconds=15):
@@ -36,6 +39,7 @@ def wait_for(predicate, message, seconds=15):
 
 
 def main():
+    global ROUTER_COMMAND_ENV
     if os.geteuid() != 0:
         raise SystemExit("Run as root on Linux with ip/iptables/ping/traceroute installed")
     if not BINARY.exists():
@@ -49,12 +53,28 @@ def main():
         runtime = temp / "router-run"
         home.mkdir()
         (home / "bin").mkdir()
+        # Only the router entrypoints see this failing external-ip command. The
+        # harness still uses real iproute2 to create and inspect the namespaces.
+        trap_dir = temp / "missing-ip"
+        trap_dir.mkdir()
+        trap_calls = temp / "external-ip-calls"
+        (trap_dir / "ip").write_text("#!/bin/sh\nprintf 'external ip called\\n' >> " + shlex.quote(str(trap_calls)) + "\nexit 127\n")
+        (trap_dir / "ip").chmod(0o755)
+        ROUTER_COMMAND_ENV = dict(os.environ, PATH=str(trap_dir) + ":" + os.environ["PATH"])
         router_binary = Path(os.environ.get("IHT_TEST_ROUTER_BINARY", str(BINARY)))
         emulator = os.environ.get("IHT_TEST_EMULATOR")
         if emulator:
             shutil.copyfile(router_binary, home / "bin/icmptunnel.bin")
             (home / "bin/icmptunnel.bin").chmod(0o755)
-            (home / "bin/icmptunnel").write_text("#!/bin/sh\nexec " + shlex.quote(emulator) + " " + shlex.quote(str(home / "bin/icmptunnel.bin")) + ' "$@"\n')
+            routing_binary = os.environ.get("IHT_TEST_ROUTING_BINARY")
+            wrapper = "#!/bin/sh\n"
+            if routing_binary:
+                # QEMU user 8.2 cannot translate RTM_*RULE messages. An explicit
+                # native helper lets the ARM daemon exercise the remaining real
+                # packet path; it is test-only and never included in a plugin.
+                wrapper += 'if [ "$1" = ip ]; then exec ' + shlex.quote(str(Path(routing_binary).resolve())) + ' "$@"; fi\n'
+            wrapper += "exec " + shlex.quote(emulator) + " " + shlex.quote(str(home / "bin/icmptunnel.bin")) + ' "$@"\n'
+            (home / "bin/icmptunnel").write_text(wrapper)
         else:
             shutil.copyfile(router_binary, home / "bin/icmptunnel")
         (home / "bin/icmptunnel").chmod(0o755)
@@ -63,6 +83,7 @@ def main():
         script = script.replace("/jffs/icmp_hijack", str(home)).replace("/tmp/icmp_hijack", str(runtime))
         control.write_text(script)
         control.chmod(0o755)
+        shutil.copyfile(PROJECT / "router/scripts/commands.sh", home / "commands.sh")
         key = "ab" * 32
         (home / "config.json").write_text(json.dumps({"server": "10.10.0.2", "port": 39070, "key": key, "interface": "icmptun0"}))
         (home / "enabled").touch()
@@ -209,8 +230,13 @@ def main():
             assert not run("ip", "route", "show", "table", "18888", ns=names["rt"], check=False).stdout.strip()
             assert run("ip", "link", "show", "icmptun0", ns=names["rt"], check=False).returncode != 0
             assert run("ping", "-6", "-n", "-c", "1", "-W", "2", "fd00:30::2", ns=names["pc"]).returncode == 0
+            assert not trap_calls.exists(), "router invoked an external ip command"
             print("PASS: disable removes own rules/routes/TUN")
-        except BaseException:
+            print("PASS: external ip unavailable; all routing handled by bundled executable")
+        except BaseException as failure:
+            if isinstance(failure, subprocess.CalledProcessError):
+                print("FAILED COMMAND STDOUT:\n" + (failure.stdout or ""))
+                print("FAILED COMMAND STDERR:\n" + (failure.stderr or ""))
             print("SERVER LOG:\n" + (temp / "server.log").read_text())
             for path in (runtime / "control.log", runtime / "daemon.log"):
                 if path.exists():

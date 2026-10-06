@@ -2,7 +2,7 @@
 
 插件把经过华硕路由器转发的 LAN IPv4 ICMP 交给 `icmptun0`，通过自定义加密 TCP 协议送到服务器。电脑不用安装软件。安装包同时包含 ARMv7 和 ARMv8 二进制，安装脚本按 `uname -m` 选择，目标平台为 AX5400 与 AX86U，包括 AX86U 的 388 固件。
 
-目前已经在 Linux 网络命名空间里验证实际数据包转发和脚本行为，尚未在华硕真机上运行。真机需要固件提供 TUN、iptables 的 MARK/NOTRACK/addrtype 模块，以及可用的 `ip` 命令。
+目前已经在 Linux 网络命名空间里验证实际数据包转发和脚本行为，尚未在华硕真机上运行。真机需要固件提供 TUN、iptables 的 MARK/NOTRACK/addrtype 模块和策略路由内核能力；不需要外部 `ip` 命令。
 
 ## 安装前
 
@@ -14,7 +14,7 @@
 
 ## 有软件中心：离线安装
 
-在软件中心的离线安装页面上传 `icmp_hijack-1.0.2.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
+在软件中心的离线安装页面上传 `icmp_hijack-1.0.3.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
 
 软件中心页面地址是 `/Module_icmp_hijack.asp`。程序安装在 `/koolshare/icmp_hijack/`，生成的配置位于 `/koolshare/configs/icmp_hijack.json`。配置由页面里的 dbus 参数生成，修改配置请使用页面；直接修改 JSON 会在下次应用时被覆盖。
 
@@ -32,15 +32,15 @@ icmp_hijack/
   res/icon-icmp_hijack.png
 ```
 
-1.0.2 修复固件没有 `id` 命令时的 root 权限误判，改为 shell 内建读取 `/proc/self/status`，安装和卸载都适用。1.0.1 对 `.valid` 的修复继续保留：`hnd` 是软件中心平台家族标识，ARMv7/ARMv8 程序仍由安装器按架构选择；不要手动修改软件中心的检查脚本。离线入口会检查实际压缩包内的隐藏文件，直接运行插件 `install.sh` 的测试无法覆盖这个入口。
+1.0.3 通过现有静态程序内置路由操作，不调用外部 `ip`，也不需要 Entware；所有入口补上固件系统命令目录。1.0.2 的无 `id` 权限检查和 1.0.1 的 `.valid` 修复继续保留。`hnd` 是软件中心平台家族标识，ARMv7/ARMv8 程序仍由安装器按架构选择；离线入口会检查实际压缩包内的隐藏文件。
 
 ## 原生梅林，没有软件中心
 
-通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmp_hijack-1.0.2.tar.gz`，然后 SSH 执行：
+通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmp_hijack-1.0.3.tar.gz`，然后 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmp_hijack-1.0.2.tar.gz
+tar -xzf icmp_hijack-1.0.3.tar.gz
 sh /tmp/icmp_hijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
@@ -122,11 +122,13 @@ tail -n 50 /tmp/icmp_hijack/control.log
 uname -m
 uname -r
 ls -l /dev/net/tun
-ip link show icmptun0
-ip rule show
-ip route show table 18888
+/koolshare/icmp_hijack/bin/icmptunnel ip link show icmptun0
+/koolshare/icmp_hijack/bin/icmptunnel ip rule show
+/koolshare/icmp_hijack/bin/icmptunnel ip route show table 18888
 iptables -t filter -L ICMP_HIJACK -n -v
 ```
+
+原生梅林把上述 `/koolshare/icmp_hijack` 替换为 `/jffs/icmp_hijack`。程序的 `ip` 子命令仅实现插件使用的 IPv4 查询和策略操作，不是完整 iproute2 替代品。
 
 如果提示 `/dev/net/tun` 不可用，启动脚本已经尝试过 `modprobe tun`。可以通过 SSH 再运行 `modprobe tun` 查看具体错误。若固件缺少匹配的 TUN 内核模块，必须使用提供该模块的固件；创建同名普通文件无法解决。保持启用时，插件继续丢弃被劫持的 ICMP。
 

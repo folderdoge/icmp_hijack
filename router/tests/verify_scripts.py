@@ -17,6 +17,11 @@ printf 'id was called\\n' >> "$MOCK_ID_CALLS"
 exit 127
 '''
 
+MISSING_IP = '''#!/bin/sh
+printf 'external ip was called\\n' >> "$MOCK_IP_CALLS"
+exit 127
+'''
+
 
 MOCK = r'''#!/usr/bin/env python3
 import json, os, sys
@@ -25,6 +30,11 @@ p = Path(os.environ['MOCK_STATE'])
 s = json.loads(p.read_text())
 name = Path(sys.argv[0]).name
 a = sys.argv[1:]
+if name.startswith('icmptunnel'):
+    if not a or a[0] != 'ip':
+        sys.exit(1)
+    name = 'ip'
+    a = a[1:]
 rc = 0
 out = ''
 if name in ('iptables','ip6tables'):
@@ -104,7 +114,8 @@ def main():
             script.write_text(body)
         binary = package / 'bin'
         binary.mkdir()
-        (binary / 'icmptunnel-armv8').write_text('#!/bin/sh\nexit 1\n')
+        (binary / 'icmptunnel-armv8').write_text(MOCK)
+        (binary / 'icmptunnel-armv8').chmod(0o755)
         statefile = temp / 'state.json'
         state = {'chains': {}, 'rules': ['0: from all lookup local', '32766: from all lookup main'],
                  'routes': [], 'dbus': {'unrelated_setting': 'keep'}, 'tun': False}
@@ -116,15 +127,18 @@ def main():
         statefile.write_text(json.dumps(state))
         mockbin = temp / 'mockbin'
         mockbin.mkdir()
-        for tool in ('iptables','ip6tables','ip','nvram','uname','logger','dbus','modprobe'):
+        for tool in ('iptables','ip6tables','nvram','uname','logger','dbus','modprobe'):
             script = mockbin / tool
             script.write_text(MOCK)
             script.chmod(0o755)
         id_calls = temp / 'id-calls'
         (mockbin / 'id').write_text(MISSING_ID)
         (mockbin / 'id').chmod(0o755)
+        ip_calls = temp / 'ip-calls'
+        (mockbin / 'ip').write_text(MISSING_IP)
+        (mockbin / 'ip').chmod(0o755)
         env = os.environ | {'PATH': str(mockbin) + ':' + os.environ['PATH'],
-                            'MOCK_STATE': str(statefile), 'MOCK_ID_CALLS': str(id_calls)}
+                            'MOCK_STATE': str(statefile), 'MOCK_ID_CALLS': str(id_calls), 'MOCK_IP_CALLS': str(ip_calls)}
         def run(path, *args, fail=False, extra=None):
             result = subprocess.run(['/bin/sh', str(path), *args], env=env | (extra or {}), capture_output=True, text=True)
             if fail:
@@ -224,7 +238,8 @@ def main():
         assert (jffs / 'services-start').read_text() == original
         assert read()['dbus'] == {'unrelated_setting':'keep'}
         assert not id_calls.exists()
-        print('PASS: root checks without id; non-root refusal; both installers; hooks preserved; repeatable rules; blackhole; failed-reload guard; priority conflict; config validation; clean uninstall')
+        assert not ip_calls.exists()
+        print('PASS: no id/ip required; non-root refusal; both installers; hooks preserved; repeatable rules; blackhole; failed-reload guard; priority conflict; config validation; clean uninstall')
 
 
 if __name__ == '__main__': main()

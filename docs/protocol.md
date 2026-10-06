@@ -17,6 +17,8 @@
 
 TUN 非持久，关闭 fd 后内核移除设备及其地址/设备路由；独立 blackhole 不依赖设备存在。接口设置 `rp_filter=2`，并配置内部 `198.18.0.1/32`，避免全局 strict rp_filter 和未编号接口检查丢弃回包；不修改全局 sysctl。
 
+1.0.3 起 shell 的 `ip` 调用由同一个静态程序的内部子命令执行，用 IPv4 rtnetlink 实现接口查询、策略规则及默认/blackhole 路由。规则删除同时匹配 pref/mark/mask/table，路由删除匹配 table/type/metric/device；不安装额外程序或改动系统命令链接。
+
 ## IHT1 握手
 
 仅在已连接 TCP 流上运行，所有整数使用网络字节序。PSK 是 32 字节随机值，以 64 位 hex 配置。

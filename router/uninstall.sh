@@ -1,5 +1,7 @@
 #!/bin/sh
 set -eu
+PATH=${PATH:-/bin:/usr/bin}:/bin:/usr/bin:/sbin:/usr/sbin:/koolshare/bin:/koolshare/scripts
+export PATH
 # Some ASUS firmware omits id. Read the effective UID with shell builtins.
 ROOT_UID=
 while read -r status_field _real_uid effective_uid _rest; do

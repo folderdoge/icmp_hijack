@@ -14,7 +14,7 @@ import (
 	"syscall"
 )
 
-var version = "1.0.2"
+var version = "1.0.3"
 
 type config struct {
 	Server         string `json:"server,omitempty"`
@@ -33,6 +33,12 @@ func main() {
 		os.Exit(2)
 	}
 	switch os.Args[1] {
+	case "ip":
+		if err := runIP(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "icmptunnel ip:", err)
+			os.Exit(1)
+		}
+		return
 	case "version", "--version":
 		fmt.Println("icmptunnel", version)
 		return
@@ -89,7 +95,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: icmptunnel router|server --config FILE | keygen | version")
+	fmt.Fprintln(os.Stderr, "usage: icmptunnel router|server --config FILE | keygen | version | ip COMMAND")
 }
 
 func ipv4(s string) (net.IP, error) {

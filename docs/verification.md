@@ -1,5 +1,15 @@
 # 1.0.0 验证记录
 
+## 1.0.3 无外部 ip 环境
+
+去掉路由器外部 `ip` 依赖，统一命令路径。安装/卸载 fixture 的 `id` 和 `ip` 都返回 127 并记录调用，两种安装模式的完整流程通过，两个记录文件都未创建。
+
+内置 IPv4 rtnetlink 助手的真实隔离 namespace 测试与 iproute2 对照通过：规则/路由新增、替换、查询、删除；同 pref 下不同 mark、mask、table 的其他规则保持不动，同表不同 metric 的路由保持不动。Go race、vet 和 ShellCheck 通过。
+
+五 namespace 数据路径使用真实控制脚本和原生内置助手通过完整测试；控制脚本 PATH 最前放置会返回 127 的 `ip`，从启动到关闭都没有调用它。逐跳、多个客户端、断线保护、重连和卸载验证正常。
+
+ARMv7/ARMv8 的请求编码、解析和静态编译通过，ARM daemon + 原生内置助手的数据路径测试通过。QEMU user 8.2 的 [消息翻译实现](https://github.com/qemu/qemu/blob/v8.2.2/linux-user/fd-trans.c#L1379-L1421) 不支持 RTM_*RULE，直接执行 ARM 规则查询会被模拟器拒绝，所以不能将这次模拟测试描述为 ARM 路由系统调用的实机验证。此前纯 ARM 全流程记录对应使用固件 `ip` 的旧版本。
+
 ## 1.0.2 精简固件与 GitHub 部署
 
 修复实际固件 `id: not found` 后的权限误判：安装/卸载通过 shell 内建读取 `/proc/self/status` 的有效 UID。新增生命周期 fixture 的 `id` 命令会返回 127 并记录调用；两种安装方式均成功，且记录文件未创建。非 root 有效 UID 在修改文件前被拒绝，真实 UID 与有效 UID 分别测试。shell 语法及 ShellCheck 通过。
@@ -83,10 +93,12 @@ traceroute to 10.30.0.2 (10.30.0.2), 6 hops max, 60 byte packets
 
 ```sh
 IHT_TEST_ROUTER_BINARY=router/bin/icmptunnel-armv7 \
-IHT_TEST_EMULATOR=/usr/bin/qemu-arm python3 tests/integration.py
+IHT_TEST_EMULATOR=/usr/bin/qemu-arm \
+IHT_TEST_ROUTING_BINARY=bin/linux-amd64/icmptunnel python3 tests/integration.py
 
 IHT_TEST_ROUTER_BINARY=router/bin/icmptunnel-armv8 \
-IHT_TEST_EMULATOR=/usr/bin/qemu-aarch64 python3 tests/integration.py
+IHT_TEST_EMULATOR=/usr/bin/qemu-aarch64 \
+IHT_TEST_ROUTING_BINARY=bin/linux-amd64/icmptunnel python3 tests/integration.py
 ```
 
 两者全部通过，四跳结果一致，第二至四跳往返约 4 ms（含模拟开销）。这验证了 ARM 构建与 TUN/网络系统调用路径，但不能替代华硕固件的内核模块、软件中心 API、页面资源及开机事件的真机测试。

@@ -4,6 +4,8 @@
 
 ## 华硕梅林
 
+- Merlin 3004.388.9 的 [Makefile](https://github.com/RMerl/asuswrt-merlin.ng/blob/3004.388.9/release/src/router/Makefile#L8450-L8452) 将 HND iproute2 安装到 `/usr/sbin/ip`；其 [BusyBox 配置](https://github.com/RMerl/asuswrt-merlin.ng/blob/3004.388.9/release/src/router/busybox/config_base#L850-L865) 没启用 `ip`，`id` 也关闭。[软件中心 base.sh](https://github.com/koolshare/rogsoft/blob/master/softcenter/softcenter/scripts/base.sh) 继承调用方 PATH，不补齐所有系统目录。`Missing command: ip` 只能证明当前 PATH 查找失败；1.0.3 补齐系统路径，并直接移除外部 ip 的运行依赖。
+
 - 软件中心的 [离线安装入口](https://github.com/koolshare/rogsoft/blob/ed42d0e9020c83b1872962c42e60bc8a0e68a675/softcenter/softcenter/scripts/ks_tar_install.sh#L205-L222) 在执行插件安装脚本前，检查与 `install.sh` 同级的 `.valid` 包含 `hnd`。官方插件的 [标识文件](https://github.com/koolshare/rogsoft/blob/master/aliddns/aliddns/.valid) 内容为 `hnd`；这与 CPU 的 32/64 位选择分开，组合 ARMv7/ARMv8 包使用相同的 HND 平台声明。
 
 - RMerl 官方 [README 支持列表](https://github.com/RMerl/asuswrt-merlin.ng/blob/main/README-merlin.txt) 将 RT-AX86U / RT-AX86S 列在 3004.388.x 平台。

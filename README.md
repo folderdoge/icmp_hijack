@@ -1,8 +1,8 @@
-# 梅林 ICMP TCP 隧道 · 1.0.2
+# 梅林 ICMP TCP 隧道 · 1.0.3
 
 路由器接管 LAN 经路由转发的 IPv4 ICMP，用自定义加密 TCP 协议送到 Linux 服务器。服务器真实发送 ICMP Echo 探测，并将 Echo Reply、Time Exceeded、Destination Unreachable、Parameter Problem 还原给客户端。电脑无需安装软件。
 
-1.0.2 修复精简固件缺少 `id` 命令造成的安装错误，并提供私有 GitHub 下载部署入口。1.0.1 的 HND `.valid` 修复继续保留；使用新版路由器包重新上传安装即可，已有服务端与新版插件协议兼容。
+1.0.3 移除外部 `ip` 依赖，现有静态程序直接完成所需路由操作，并补齐非交互式脚本的系统命令路径。此前 `id` 和 HND `.valid` 的修复继续保留；使用新版路由器包重新上传安装即可，已有服务端与新版插件协议兼容。
 
 你描述的逐跳显示使用 **Windows `tracert -d`** 或 **Linux `traceroute -n -I`**；普通 `ping` 只显示目标的往返时间。
 
@@ -12,10 +12,10 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [icmp_hijack-1.0.2.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.2/icmp_hijack-1.0.2.tar.gz) | 路由器插件，内含 ARMv7 / ARMv8，自动选择 |
-| [icmptunnel-server-1.0.2.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.2/icmptunnel-server-1.0.2.tar.gz) | Linux 服务端，内含 x86_64 / aarch64，一键安装 |
-| [icmptunnel-source-1.0.2.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.2/icmptunnel-source-1.0.2.tar.gz) | 完整源码、测试与构建工具 |
-| [SHA256SUMS](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.2/SHA256SUMS) | 三个交付包的 SHA-256 |
+| [icmp_hijack-1.0.3.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/icmp_hijack-1.0.3.tar.gz) | 路由器插件，内含 ARMv7 / ARMv8，自动选择 |
+| [icmptunnel-server-1.0.3.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/icmptunnel-server-1.0.3.tar.gz) | Linux 服务端，内含 x86_64 / aarch64，一键安装 |
+| [icmptunnel-source-1.0.3.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/icmptunnel-source-1.0.3.tar.gz) | 完整源码、测试与构建工具 |
+| [SHA256SUMS](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.3/SHA256SUMS) | 三个交付包的 SHA-256 |
 
 ### 1. 安装服务端
 
@@ -24,7 +24,7 @@
 支持使用 systemd 的 Debian / Ubuntu 等 Linux。把服务端压缩包上传到服务器，在上传目录运行：
 
 ```sh
-tar -xzf icmptunnel-server-1.0.2.tar.gz && sudo bash icmptunnel-server/server/install.sh --public-ip 14.137.20.5 --port 39070
+tar -xzf icmptunnel-server-1.0.3.tar.gz && sudo bash icmptunnel-server/server/install.sh --public-ip 14.137.20.5 --port 39070
 ```
 
 替换成你的服务器公网 IPv4。脚本自动生成 32 字节随机密钥，并显示 **IP、TCP 端口、64 位 hex 密钥**；将这三项填入路由器。也可通过 `--key` 指定已有密钥。再次执行脚本会升级程序，保留未显式修改的配置。
@@ -43,14 +43,14 @@ journalctl -u icmptunnel-server -f
 先在路由器「系统管理 → 系统设置」启用 **JFFS 自定义脚本**。有 Koolshare 软件中心时：
 
 1. 打开软件中心的离线安装。
-2. 上传 `icmp_hijack-1.0.2.tar.gz` 并安装。
+2. 上传 `icmp_hijack-1.0.3.tar.gz` 并安装。
 3. 打开「ICMP TCP 隧道」，填入 IP / 端口 / 密钥，开启并应用。
 
 无软件中心的原生梅林：把同一个包上传到路由器 `/tmp`，通过 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmp_hijack-1.0.2.tar.gz
+tar -xzf icmp_hijack-1.0.3.tar.gz
 sh /tmp/icmp_hijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
@@ -143,7 +143,8 @@ sudo bash /usr/local/lib/icmptunnel/uninstall.sh
 - 真实 systemd 安装、启动、保留配置升级、修改配置、端口占用失败、卸载和二次卸载。
 - 两种路由器安装模式的隔离模拟：hooks 内容/权限恢复、外部规则保留、配置验证、安装卸载文件及 dbus 清理。
 - Go 单元测试与 vet：认证、加密帧篡改/重放、并发发送、身份映射、校验和、ICMP 截断引用、IP options、RFC4884 扩展。
-- Go race 检查通过；交付的 ARMv7 和 ARMv8 二进制分别通过 QEMU 运行同一套完整网络测试，包括实际 TUN ioctl、加密隧道和断线保护。
+- Go race 检查通过；内置路由操作通过真实 namespace 测试，并与 iproute2 核对，验证精确删除不会删掉其他 mark/mask/table/metric 的规则和路由。
+- ARMv7/ARMv8 的协议与数据路径通过模拟测试；QEMU user 8.2 不支持策略规则消息，因此 1.0.3 模拟器测试使用原生内置路由助手，另在两种 ARM 下验证请求编码。实际 ARM 固件的路由系统调用仍需实机验证。
 
 详细记录见 [测试记录](docs/verification.md)。
 
@@ -154,7 +155,7 @@ sudo bash /usr/local/lib/icmptunnel/uninstall.sh
 ```sh
 go test ./...
 go vet ./...
-python3 tools/release.py --version 1.0.2
+python3 tools/release.py --version 1.0.3
 ```
 
 Linux 完整网络测试需要 root，以及 `ip`、`iptables`、`ip6tables`、`ping`、`traceroute`：

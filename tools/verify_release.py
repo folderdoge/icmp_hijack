@@ -24,6 +24,7 @@ def main():
             "icmp_hijack/.valid": None,
             "icmp_hijack/install.sh": None,
             "icmp_hijack/uninstall.sh": None,
+            "icmp_hijack/scripts/commands.sh": None,
             "icmp_hijack/bin/icmptunnel-armv7": 40,
             "icmp_hijack/bin/icmptunnel-armv8": 183,
             "icmp_hijack/webs/Module_icmp_hijack.asp": None,
