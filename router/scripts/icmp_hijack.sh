@@ -24,37 +24,29 @@ TABLE=18888
 PREF=100
 MARK=0x40000000/0x40000000
 CHAIN=ICMP_HIJACK
-LOG_LIMIT=262144
-LOG_KEEP=131072
-LOG_INTERVAL=60
+STATE_FILE=$RUN/status.json
 umask 077
 
-trim_log() {
-    [ -f "$1" ] || return 0
-    log_bytes=$(wc -c < "$1")
-    [ "$log_bytes" -gt "$LOG_LIMIT" ] || return 0
-    # Keep the inode: daemon and supervisor append through already-open FDs.
-    # Renaming a live log could leave an invisible file growing in /tmp.
-    log_tail=$1.trim.$$
-    if tail -c "$LOG_KEEP" "$1" > "$log_tail"; then
-        cat "$log_tail" > "$1"
-    fi
-    rm -f "$log_tail"
-}
-
-trim_logs() {
-    trim_log "$RUN/daemon.log"
-    trim_log "$RUN/control.log"
-}
-
-log() {
-    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$RUN/control.log"
-    trim_log "$RUN/control.log"
-    logger -t icmp_hijack "$*"
+sync_status() {
+    status_text=$("$BIN" status --file "$STATE_FILE" 2>/dev/null) || return 0
+    [ "$status_text" != "${previous_status:-}" ] || return 0
+    previous_status=$status_text
+    IFS="$(printf '\t')" read -r current_state current_time current_detail <<EOF
+$status_text
+EOF
     if [ "$SOFTCENTER" = 1 ]; then
-        dbus set "icmp_hijack_status=$*"
+        dbus set "icmp_hijack_state=$current_state"
+        dbus set "icmp_hijack_status=$current_detail"
+        dbus set "icmp_hijack_status_time=$current_time"
     fi
 }
+
+set_status() {
+    "$BIN" status --file "$STATE_FILE" --set "$1" --detail "$2" >/dev/null 2>&1 || :
+    sync_status
+}
+
+error_status() { set_status error "$*"; }
 
 enabled() {
     if [ "$SOFTCENTER" = 1 ]; then
@@ -87,7 +79,7 @@ lock() {
     count=0
     until mkdir "$RUN/lock" 2>/dev/null; do
         count=$((count + 1))
-        [ "$count" -lt 15 ] || { log '控制脚本忙，请稍后重试'; return 1; }
+        [ "$count" -lt 15 ] || { error_status '控制脚本忙，请稍后重试'; return 1; }
         sleep 1
     done
     trap 'rmdir "$RUN/lock" 2>/dev/null' EXIT
@@ -126,7 +118,7 @@ routes() {
     ip route replace blackhole default table "$TABLE" metric 32767 || return 1
     existing=$(ip rule show | awk -v p="$PREF:" '$1 == p { print }')
     if [ -n "$existing" ] && printf '%s\n' "$existing" | grep -v 'fwmark 0x40000000/0x40000000.*lookup 18888' >/dev/null; then
-        log "策略优先级 $PREF 已被其他功能使用；保持 ICMP 丢弃"
+        error_status "策略优先级 $PREF 已被其他功能使用；保持 ICMP 丢弃"
         return 1
     fi
     [ -n "$existing" ] || ip rule add pref "$PREF" fwmark "$MARK" table "$TABLE" || return 1
@@ -200,14 +192,14 @@ remove_rules() {
 }
 
 validate_settings() {
-    case "$server" in ''|*[!0-9.]*) log '服务器必须为 IPv4 地址'; return 1;; esac
-    printf '%s\n' "$server" | awk -F. 'NF != 4 {exit 1} {for(i=1;i<=4;i++) if($i == "" || $i+0 > 255 || length($i)>3 || $i ~ /^0[0-9]+$/) exit 1}' || { log '服务器 IPv4 地址不合法'; return 1; }
-    case "$port" in ''|*[!0-9]*) log '端口必须为 1-65535'; return 1;; esac
+    case "$server" in ''|*[!0-9.]*) error_status '服务器必须为 IPv4 地址'; return 1;; esac
+    printf '%s\n' "$server" | awk -F. 'NF != 4 {exit 1} {for(i=1;i<=4;i++) if($i == "" || $i+0 > 255 || length($i)>3 || $i ~ /^0[0-9]+$/) exit 1}' || { error_status '服务器 IPv4 地址不合法'; return 1; }
+    case "$port" in ''|*[!0-9]*) error_status '端口必须为 1-65535'; return 1;; esac
     if [ "${#port}" -gt 5 ] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
-        log '端口必须为 1-65535'; return 1
+        error_status '端口必须为 1-65535'; return 1
     fi
-    case "$key" in *[!a-fA-F0-9]*) log '密钥必须为 64 位十六进制'; return 1;; esac
-    [ "${#key}" = 64 ] || { log '密钥必须为 64 位十六进制'; return 1; }
+    case "$key" in *[!a-fA-F0-9]*) error_status '密钥必须为 64 位十六进制'; return 1;; esac
+    [ "${#key}" = 64 ] || { error_status '密钥必须为 64 位十六进制'; return 1; }
 }
 
 write_config() {
@@ -234,6 +226,7 @@ stop_daemon() {
         sleep 1
         count=$((count + 1))
     done
+    rm -f "$STATE_FILE"
     # The supervisor's signal trap has now finished removing old PID files.
 }
 
@@ -241,31 +234,43 @@ supervise() {
     echo "$$" > "$RUN/supervisor.pid"
     trap 'kill_pidfile "$RUN/daemon.pid"; rm -f "$RUN/supervisor.pid"; exit 0' HUP INT TERM
     while enabled; do
-        trim_logs
-        "$BIN" router --config "$CONFIG" >> "$RUN/daemon.log" 2>&1 &
+        rm -f "$RUN"/.status-*.tmp
+        set_status connecting '正在启动隧道'
+        "$BIN" router --config "$CONFIG" --status-file "$STATE_FILE" >/dev/null 2>&1 &
         child=$!
         echo "$child" > "$RUN/daemon.pid"
         i=0
+        route_failed=0
         while kill -0 "$child" 2>/dev/null && [ "$i" -lt 10 ]; do
             if ip link show dev "$TUN" >/dev/null 2>&1; then
-                ip route replace default dev "$TUN" table "$TABLE" metric 10
+                ip route replace default dev "$TUN" table "$TABLE" metric 10 || route_failed=1
                 break
             fi
             i=$((i + 1))
             sleep 1
         done
-        log_ticks=0
+        if [ "$route_failed" = 1 ]; then
+            kill_pidfile "$RUN/daemon.pid"
+            wait "$child" 2>/dev/null || :
+            error_status '隧道路由设置失败，ICMP 继续丢弃'
+            sleep 1; sleep 1; sleep 1
+            continue
+        fi
+        status_ticks=0
         while kill -0 "$child" 2>/dev/null; do
-            if [ "$log_ticks" -eq 0 ]; then
-                trim_logs
+            if [ "$status_ticks" -eq 0 ]; then
+                sync_status
             fi
             sleep 1
-            log_ticks=$((log_ticks + 1))
-            [ "$log_ticks" -lt "$LOG_INTERVAL" ] || log_ticks=0
+            status_ticks=$((status_ticks + 1))
+            [ "$status_ticks" -lt 2 ] || status_ticks=0
         done
         wait "$child"
         rm -f "$RUN/daemon.pid"
-        log '隧道进程退出，ICMP 继续丢弃，3 秒后重启'
+        sync_status
+        if [ "${current_state:-}" != error ]; then
+            set_status error '隧道进程已退出，ICMP 继续丢弃，正在自动重启'
+        fi
         sleep 1
         sleep 1
         sleep 1
@@ -275,18 +280,18 @@ supervise() {
 
 start() {
     enabled || return 0
-    firewall || { log '防火墙/策略路由配置失败，ICMP 保持丢弃；检查 control.log'; return 1; }
+    firewall || { error_status '防火墙/策略路由配置失败，ICMP 保持丢弃'; return 1; }
     if [ "$SOFTCENTER" = 1 ]; then
         write_config || return 1
     fi
-    [ -r "$CONFIG" ] || { log "配置不存在：$CONFIG"; return 1; }
-    [ -x "$BIN" ] || { log '可执行文件缺失，ICMP 保持丢弃'; return 1; }
+    [ -r "$CONFIG" ] || { error_status '配置不存在，ICMP 保持丢弃'; return 1; }
+    [ -x "$BIN" ] || { error_status '可执行文件缺失，ICMP 保持丢弃'; return 1; }
     [ -c /dev/net/tun ] || modprobe tun 2>/dev/null || :
-    [ -c /dev/net/tun ] || { log '内核 TUN 设备不可用，ICMP 保持丢弃'; return 1; }
+    [ -c /dev/net/tun ] || { error_status '内核 TUN 设备不可用，ICMP 保持丢弃'; return 1; }
     pid_alive "$RUN/supervisor.pid" && return 0
-    "$SELF" supervise </dev/null >> "$RUN/control.log" 2>&1 &
+    set_status connecting '正在启动并连接服务器'
+    "$SELF" supervise </dev/null >/dev/null 2>&1 &
     echo "$!" > "$RUN/supervisor.pid"
-    log '劫持已开启；服务连接状态见 daemon.log，断线不会回落真实链路'
 }
 
 mkdir -p "$RUN"
@@ -302,24 +307,24 @@ case "${1:-}" in
         pid_alive "$RUN/daemon.pid" && echo 'daemon: running' || echo 'daemon: stopped'
         ip rule show | grep '18888' || :
         ip route show table "$TABLE" 2>/dev/null || :
-        tail -n 20 "$RUN/daemon.log" 2>/dev/null || :
+        "$BIN" status --file "$STATE_FILE" 2>/dev/null || :
         exit 0
         ;;
 esac
 lock || exit 1
 case "${1:-}" in
     start) start;;
-    restart|apply) stop_daemon; if enabled; then start; else remove_rules; log '已关闭劫持'; fi;;
-    firewall|nat) if enabled; then firewall; else remove_rules; fi;;
-    stop) stop_daemon; remove_rules; log '已关闭劫持';;
-    shutdown) stop_daemon;;
+    restart|apply) stop_daemon; if enabled; then start; else remove_rules; set_status disabled '劫持已关闭'; fi;;
+    firewall|nat) if enabled; then firewall || { stop_daemon; error_status '路由配置失败，ICMP 保持丢弃'; exit 1; }; else remove_rules; set_status disabled '劫持已关闭'; fi;;
+    stop) stop_daemon; remove_rules; set_status disabled '劫持已停止';;
+    shutdown) stop_daemon; set_status disabled '劫持已停止';;
     enable)
         if [ "$SOFTCENTER" = 1 ]; then dbus set icmp_hijack_enable=1; else touch "$ROOT/enabled"; fi
         start
         ;;
     disable)
         if [ "$SOFTCENTER" = 1 ]; then dbus set icmp_hijack_enable=0; else rm -f "$ROOT/enabled"; fi
-        stop_daemon; remove_rules; log '已关闭劫持'
+        stop_daemon; remove_rules; set_status disabled '劫持已关闭'
         ;;
     *) echo "Usage: $0 {start|restart|apply|firewall|nat|stop|shutdown|enable|disable|status}"; exit 1;;
 esac

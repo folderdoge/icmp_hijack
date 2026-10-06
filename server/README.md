@@ -44,6 +44,8 @@ sudo bash server/install.sh --public-ip 14.137.20.5 --port 39070
 
 安装脚本执行 `systemctl enable --now icmptunnel-server.service`，因此安装后立即启动，也已经启用开机自启。服务进程异常退出时，systemd 会在 2 秒后重启。
 
+1.0.7 的服务单元不保存程序标准输出或错误输出。系统自身的服务启停记录由 systemd 管理；本程序不清理其他系统记录。
+
 安装位置：
 
 - 程序：`/usr/local/bin/icmptunnel`
@@ -51,12 +53,11 @@ sudo bash server/install.sh --public-ip 14.137.20.5 --port 39070
 - 服务：`/etc/systemd/system/icmptunnel-server.service`
 - 卸载脚本：`/usr/local/lib/icmptunnel/uninstall.sh`
 
-查看状态和日志：
+查看当前服务状态：
 
 ```bash
 systemctl status icmptunnel-server
 systemctl is-enabled icmptunnel-server
-journalctl -u icmptunnel-server -f
 ```
 
 修改配置后执行 `sudo systemctl restart icmptunnel-server`。更换密钥时同时更新路由器配置。

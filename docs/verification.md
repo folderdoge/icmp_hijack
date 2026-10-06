@@ -1,5 +1,13 @@
 # 验证记录
 
+## 1.0.7 当前状态与原生界面
+
+取消路由器日志文件、轮转和 logger 输出，旧日志在升级中删除；只原子覆盖当前状态 JSON，读取和写入都限制在 1 KiB 内。单元测试覆盖覆盖写入、重复状态不重写、控制字符处理、并发写入、无临时/历史文件及坏状态拒绝，race/vet 通过。
+
+真实 namespace + Merlin ash 集成测试验证连接后 state=connected，断线更新 connect_error，错密钥更新 auth_error，恢复后 connected，关闭后 disabled；整个过程没有 daemon.log/control.log，数据路径与原有清理检查通过。服务端安装单元 StandardOutput/StandardError=null，自启/卸载测试通过。
+
+页面使用 ASUS 原生 FormTitle/FormTable、开关、配置/帮助页签和提交按钮。Node 回归覆盖轮询保留编辑、RPC、六种状态、密码隐藏、失败校验和无日志面板。本地浏览器使用真实 388 CSS 及 fixture API 进行视觉检查，配置和帮助页签切换正常；这是开发预览，不能替代固件实机 API/主题测试。
+
 ## 1.0.6 路由器日志限制
 
 原实现仅在 daemon 启动前检查 daemon.log，持续断线重连不会触发；control.log 无上限。改为已有 supervisor 在子进程运行时每 60 秒检查两份日志，超过 256 KiB 时原地保留末尾 128 KiB，控制日志另在每次写入后检查。未增加 cron 或独立监护进程。

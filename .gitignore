@@ -4,3 +4,4 @@ router/bin/
 __pycache__/
 *.log
 *.test
+.ui-preview/

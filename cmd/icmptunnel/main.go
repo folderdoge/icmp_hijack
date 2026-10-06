@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -14,7 +15,7 @@ import (
 	"syscall"
 )
 
-var version = "1.0.6"
+var version = "1.0.7"
 
 type config struct {
 	Server         string `json:"server,omitempty"`
@@ -33,6 +34,12 @@ func main() {
 		os.Exit(2)
 	}
 	switch os.Args[1] {
+	case "status":
+		if err := runStatus(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	case "ip":
 		if err := runIP(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, "icmptunnel ip:", err)
@@ -56,18 +63,34 @@ func main() {
 	}
 	f := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	path := f.String("config", "", "configuration JSON path")
+	statusPath := f.String("status-file", "", "overwrite current router state JSON")
 	_ = f.Parse(os.Args[2:])
 	if *path == "" || f.NArg() != 0 {
 		f.Usage()
 		os.Exit(2)
 	}
+	var reporter *statusReporter
+	if os.Args[1] == "router" {
+		log.SetOutput(io.Discard)
+		reporter = &statusReporter{path: *statusPath}
+		_ = reporter.set("connecting", "正在启动隧道")
+	}
+	fail := func(err error) {
+		if reporter != nil {
+			_ = reporter.set("error", "启动失败："+err.Error())
+		}
+		if os.Args[1] != "router" {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(1)
+	}
 	b, err := os.ReadFile(*path)
 	if err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 	var cfg config
 	if err = json.Unmarshal(b, &cfg); err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 	if cfg.Port == 0 {
 		cfg.Port = 39070
@@ -85,12 +108,12 @@ func main() {
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 	go func() { <-sigs; os.Exit(0) }() // kernel closes sockets and nonpersistent TUN
 	if os.Args[1] == "router" {
-		err = runRouter(cfg)
+		err = runRouterStatus(cfg, reporter)
 	} else {
 		err = runServer(cfg)
 	}
 	if err != nil {
-		log.Fatal(err)
+		fail(err)
 	}
 }
 

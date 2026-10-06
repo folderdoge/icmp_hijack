@@ -86,7 +86,6 @@ def main():
         control = home / "icmp_hijack.sh"
         script = (PROJECT / "router/scripts/icmp_hijack.sh").read_text()
         script = script.replace("/jffs/icmp_hijack", str(home)).replace("/tmp/icmp_hijack", str(runtime))
-        script = script.replace("LOG_INTERVAL=60", "LOG_INTERVAL=1") # accelerated log-maintenance fixture
         if os.environ.get("ICMPTUNNEL_TEST_BUSYBOX") == "1":
             script = script.replace("#!/bin/sh", "#!" + os.environ["ICMPTUNNEL_TEST_SHELL"] + " ash", 1)
         control.write_text(script)
@@ -144,8 +143,11 @@ def main():
 
             server = start_server()
             run("sh", control, "start", ns=names["rt"])
-            log_path = runtime / "daemon.log"
-            wait_for(lambda: log_path.exists() and "tunnel connected" in log_path.read_text() and "default dev icmptun0" in run("ip", "route", "show", "table", "18888", ns=names["rt"]).stdout, "Tunnel/route never became ready")
+            status_path = runtime / "status.json"
+            def current_state():
+                try: return json.loads(status_path.read_text()).get('state')
+                except (FileNotFoundError, json.JSONDecodeError): return None
+            wait_for(lambda: current_state() == 'connected' and "default dev icmptun0" in run("ip", "route", "show", "table", "18888", ns=names["rt"]).stdout, "Tunnel/route never became ready")
             assert run("ping", "-n", "-c", "1", "-W", "2", "192.168.50.1", ns=names["pc"]).returncode == 0
             trace = run("traceroute", "-n", "-I", "-q", "1", "-w", "2", "-m", "6", "10.30.0.2", ns=names["pc"]).stdout
             print(trace, end="")
@@ -155,16 +157,9 @@ def main():
             assert run("ping", "-n", "-c", "1", "-W", "2", "10.10.0.2", ns=names["pc"]).returncode == 0
             print("PASS: local router ping, real remote path, ping destination/server")
 
-            control_log = runtime / "control.log"
-            inode_before = (log_path.stat().st_ino, control_log.stat().st_ino)
-            for file in (log_path, control_log):
-                with file.open("ab") as output:
-                    output.write(b"old diagnostic data\n" * 18000)
-                    output.write(b"retained-log-marker\n")
-            wait_for(lambda: log_path.stat().st_size <= 132000 and control_log.stat().st_size <= 132000, "Live log maintenance did not trim both files", 6)
-            assert (log_path.stat().st_ino, control_log.stat().st_ino) == inode_before
-            assert "retained-log-marker" in log_path.read_text() and "retained-log-marker" in control_log.read_text()
-            print("PASS: live daemon/control logs trimmed to recent 128 KiB without replacing inode")
+            assert status_path.stat().st_size <= 1024
+            assert not (runtime / 'daemon.log').exists() and not (runtime / 'control.log').exists()
+            print("PASS: only bounded current state retained; no router logs")
 
             procs = [subprocess.Popen(["ip", "netns", "exec", names["pc"], "ping", "-n", "-I", src, "-e", "4242", "-c", "3", "-W", "2", "10.30.0.2"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) for src in ("192.168.50.100", "192.168.50.101")]
             for proc in procs:
@@ -205,16 +200,16 @@ def main():
             assert run("ping", "-n", "-c", "1", "-W", "2", "10.30.0.2", ns=names["pc"]).returncode == 0
             print("PASS: firewall refresh")
 
-            previous_connections = log_path.read_text().count("tunnel connected")
             server.terminate()
             server.wait(timeout=5)
             assert run("ping", "-n", "-c", "1", "-W", "1", "10.30.0.2", ns=names["pc"], check=False).returncode != 0
             print("PASS: server disconnected => drop")
+            wait_for(lambda: current_state() == 'connect_error', "Disconnect current state was not updated")
             invalid_config = json.loads(server_config.read_text())
             invalid_config["key"] = "cd" * 32
             server_config.write_text(json.dumps(invalid_config))
             server = start_server()
-            wait_for(lambda: "handshake failed" in log_path.read_text(), "Incorrect key was not rejected")
+            wait_for(lambda: current_state() == 'auth_error', "Incorrect key was not rejected")
             assert run("ping", "-n", "-c", "1", "-W", "1", "10.30.0.2", ns=names["pc"], check=False).returncode != 0
             server.terminate()
             server.wait(timeout=5)
@@ -222,7 +217,7 @@ def main():
             server_config.write_text(json.dumps(invalid_config))
             print("PASS: incorrect shared key => authentication failure and drop")
             server = start_server()
-            wait_for(lambda: log_path.read_text().count("tunnel connected") > previous_connections, "Reconnect failed", 20)
+            wait_for(lambda: current_state() == 'connected', "Reconnect failed", 20)
             assert run("ping", "-n", "-c", "1", "-W", "2", "10.30.0.2", ns=names["pc"]).returncode == 0
             print("PASS: reconnect")
 
@@ -244,6 +239,8 @@ def main():
             wait_for(lambda: run("ping", "-n", "-c", "1", "-W", "1", "10.30.0.2", ns=names["pc"], check=False).returncode == 0, "Restart did not restore tunnel")
             print("PASS: daemon crash => drop, supervisor restarts")
             run("sh", control, "disable", ns=names["rt"])
+            assert current_state() == 'disabled'
+            assert not (runtime / 'daemon.log').exists() and not (runtime / 'control.log').exists()
             assert "ICMP_HIJACK" not in run("iptables-save", ns=names["rt"]).stdout
             assert "ICMP_HIJACK" not in run("ip6tables-save", ns=names["rt"]).stdout
             assert "18888" not in run("ip", "rule", "show", ns=names["rt"]).stdout
@@ -258,7 +255,7 @@ def main():
                 print("FAILED COMMAND STDOUT:\n" + (failure.stdout or ""))
                 print("FAILED COMMAND STDERR:\n" + (failure.stderr or ""))
             print("SERVER LOG:\n" + (temp / "server.log").read_text())
-            for path in (runtime / "control.log", runtime / "daemon.log"):
+            for path in (runtime / "status.json",):
                 if path.exists():
                     print(str(path) + ":\n" + path.read_text())
             if names["rt"] in created:

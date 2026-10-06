@@ -3,7 +3,7 @@ set -eu
 PATH=${PATH:-/bin:/usr/bin}:/bin:/usr/bin:/sbin:/usr/sbin:/koolshare/bin:/koolshare/scripts
 export PATH
 PACKAGE=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
-VERSION=1.0.6
+VERSION=1.0.7
 # shellcheck disable=SC1091
 . "$PACKAGE/scripts/commands.sh"
 
@@ -40,6 +40,8 @@ fi
 if [ -x "$ROOT/icmp_hijack.sh" ]; then
     "$ROOT/icmp_hijack.sh" shutdown
 fi
+# Old versions created append-only diagnostic files; remove them during upgrade.
+rm -f /tmp/icmp_hijack/*.log /tmp/icmp_hijack/*.log.new /tmp/icmp_hijack/*.log.trim.*
 mkdir -p "$ROOT/bin" "$(dirname "$CONFIG")"
 chmod 700 "$ROOT"
 cp "$SOURCE" "$ROOT/bin/icmptunnel"
@@ -78,6 +80,11 @@ if [ "$SOFTCENTER" = 1 ]; then
     dbus set "icmp_hijack_version=$VERSION"
     [ -n "$(dbus get icmp_hijack_port)" ] || dbus set icmp_hijack_port=39070
     [ -n "$(dbus get icmp_hijack_enable)" ] || dbus set icmp_hijack_enable=0
+    if [ "$(dbus get icmp_hijack_enable)" != 1 ]; then
+        dbus set icmp_hijack_state=disabled
+        dbus set 'icmp_hijack_status=劫持已关闭'
+        dbus set "icmp_hijack_status_time=$(date '+%Y-%m-%d %H:%M:%S')"
+    fi
     "$ROOT/icmp_hijack.sh" start
     echo '安装完成：软件中心 → ICMP TCP 隧道。配置 IPv4、端口、64 位 hex 密钥后开启。'
 else

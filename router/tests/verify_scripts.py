@@ -31,6 +31,17 @@ s = json.loads(p.read_text())
 name = Path(sys.argv[0]).name
 a = sys.argv[1:]
 if name.startswith('icmptunnel'):
+    if a and a[0] == 'status':
+        path = Path(a[a.index('--file')+1])
+        if '--set' in a:
+            value = {'state': a[a.index('--set')+1], 'detail': a[a.index('--detail')+1], 'changed_at':'2026-10-06 12:00:00'}
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_text(json.dumps(value))
+            sys.exit(0)
+        if not path.exists(): sys.exit(1)
+        value = json.loads(path.read_text())
+        print(value['state']+'\t'+value['changed_at']+'\t'+value['detail'])
+        sys.exit(0)
     if not a or a[0] != 'ip':
         sys.exit(1)
     name = 'ip'

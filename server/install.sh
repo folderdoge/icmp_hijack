@@ -138,6 +138,8 @@ User=root
 ExecStart=/usr/local/bin/icmptunnel server --config /etc/icmptunnel/server.json
 Restart=on-failure
 RestartSec=2
+StandardOutput=null
+StandardError=null
 
 [Install]
 WantedBy=multi-user.target
@@ -159,8 +161,8 @@ systemctl enable --now "$SERVICE"
 # Type=simple starts before the daemon has parsed its config and opened its socket.
 sleep 1
 if ! systemctl is-active --quiet "$SERVICE"; then
-    journalctl -u "$SERVICE" -n 30 --no-pager >&2 || true
-    die "Service did not start; inspect journalctl -u $SERVICE"
+    systemctl status "$SERVICE" --no-pager >&2 || true
+    die "Service did not start; inspect systemctl status $SERVICE"
 fi
 
 printf '\nInstalled and running. Configure the router with:\n'
@@ -168,5 +170,5 @@ printf '  Server IPv4: %s\n  TCP port:    %s\n  Shared key:  %s\n' "$PUBLIC_IP" 
 printf '\nAllow TCP/%s in the server firewall and cloud security group.\n' "$PORT"
 printf 'The tunnel itself uses its encrypted TCP protocol; no HTTP service is started.\n'
 printf 'Status:    systemctl status %s\n' "$SERVICE"
-printf 'Logs:      journalctl -u %s -f\n' "$SERVICE"
+printf 'Application logging is disabled.\n'
 printf 'Uninstall: sudo bash %q\n' "$UNINSTALL_TARGET"

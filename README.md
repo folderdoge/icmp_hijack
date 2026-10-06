@@ -1,8 +1,8 @@
-# 梅林 ICMP TCP 隧道 · 1.0.6
+# 梅林 ICMP TCP 隧道 · 1.0.7
 
 路由器接管 LAN 经路由转发的 IPv4 ICMP，用自定义加密 TCP 协议送到 Linux 服务器。服务器真实发送 ICMP Echo 探测，并将 Echo Reply、Time Exceeded、Destination Unreachable、Parameter Problem 还原给客户端。电脑无需安装软件。
 
-1.0.5 修复安装成功后没有卡片的问题：软件中心标识使用无下划线的 `icmphijack`，运行目录和配置保留 `icmp_hijack`，已有服务端保持兼容。梅林 shell、`id`、外部 `ip` 和 HND `.valid` 的修复继续保留。
+1.0.7 仅保留当前连接状态，取消应用日志及日志页。页面采用 ASUS 原生状态表格、开关、服务配置/帮助页签与提交按钮，状态每 3 秒刷新。运行目录、配置和隧道协议保持兼容。
 
 已安装 1.0.4 时，可将 [卡片修复脚本](router/repair_center.sh) 上传到路由器 `/tmp/repair_center.sh`，执行 `sh /tmp/repair_center.sh` 后刷新软件中心，无需重装。也可安装新版包进行升级。
 
@@ -14,10 +14,10 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [icmphijack-1.0.6.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.6/icmphijack-1.0.6.tar.gz) | 路由器插件，内含 ARMv7 / ARMv8，自动选择 |
-| [icmptunnel-server-1.0.6.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.6/icmptunnel-server-1.0.6.tar.gz) | Linux 服务端，内含 x86_64 / aarch64，一键安装 |
-| [icmptunnel-source-1.0.6.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.6/icmptunnel-source-1.0.6.tar.gz) | 完整源码、测试与构建工具 |
-| [SHA256SUMS](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.6/SHA256SUMS) | 三个交付包的 SHA-256 |
+| [icmphijack-1.0.7.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.7/icmphijack-1.0.7.tar.gz) | 路由器插件，内含 ARMv7 / ARMv8，自动选择 |
+| [icmptunnel-server-1.0.7.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.7/icmptunnel-server-1.0.7.tar.gz) | Linux 服务端，内含 x86_64 / aarch64，一键安装 |
+| [icmptunnel-source-1.0.7.tar.gz](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.7/icmptunnel-source-1.0.7.tar.gz) | 完整源码、测试与构建工具 |
+| [SHA256SUMS](https://github.com/folderdoge/icmp_hijack/releases/download/v1.0.7/SHA256SUMS) | 三个交付包的 SHA-256 |
 
 ### 1. 安装服务端
 
@@ -26,7 +26,7 @@
 支持使用 systemd 的 Debian / Ubuntu 等 Linux。把服务端压缩包上传到服务器，在上传目录运行：
 
 ```sh
-tar -xzf icmptunnel-server-1.0.6.tar.gz && sudo bash icmptunnel-server/server/install.sh --public-ip 14.137.20.5 --port 39070
+tar -xzf icmptunnel-server-1.0.7.tar.gz && sudo bash icmptunnel-server/server/install.sh --public-ip 14.137.20.5 --port 39070
 ```
 
 替换成你的服务器公网 IPv4。脚本自动生成 32 字节随机密钥，并显示 **IP、TCP 端口、64 位 hex 密钥**；将这三项填入路由器。也可通过 `--key` 指定已有密钥。再次执行脚本会升级程序，保留未显式修改的配置。
@@ -35,7 +35,7 @@ tar -xzf icmptunnel-server-1.0.6.tar.gz && sudo bash icmptunnel-server/server/in
 
 ```sh
 systemctl status icmptunnel-server
-journalctl -u icmptunnel-server -f
+systemctl is-active icmptunnel-server
 ```
 
 ### 2. 安装路由器插件
@@ -45,14 +45,14 @@ journalctl -u icmptunnel-server -f
 先在路由器「系统管理 → 系统设置」启用 **JFFS 自定义脚本**。有 Koolshare 软件中心时：
 
 1. 打开软件中心的离线安装。
-2. 上传 `icmphijack-1.0.6.tar.gz` 并安装。
+2. 上传 `icmphijack-1.0.7.tar.gz` 并安装。
 3. 打开「ICMP TCP 隧道」，填入 IP / 端口 / 密钥，开启并应用。
 
 无软件中心的原生梅林：把同一个包上传到路由器 `/tmp`，通过 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmphijack-1.0.6.tar.gz
+tar -xzf icmphijack-1.0.7.tar.gz
 sh /tmp/icmphijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
@@ -74,7 +74,7 @@ vi /jffs/icmp_hijack/config.json
 
 配置修改后执行 `restart`。安装本身默认关闭；启用后连接失败、认证失败或隧道进程退出时，接管范围内的 ICMP 丢弃，不走真实 WAN。
 
-详见 [路由器安装、日志和卸载说明](router/README.md)；[服务端说明](server/README.md)。
+详见 [路由器安装、状态和卸载说明](router/README.md)；[服务端说明](server/README.md)。
 
 ### 3. 在电脑上验证
 
@@ -104,10 +104,9 @@ RTT 是 **电脑 ↔ 路由器 ↔ TCP 落地服务器 ↔ 探测节点** 的实
 
 ```sh
 /koolshare/icmp_hijack/icmp_hijack.sh status
-tail -n 50 /tmp/icmp_hijack/daemon.log
 ```
 
-原生版把第一条路径替换为 `/jffs/icmp_hijack/icmp_hijack.sh`。`tunnel connected` 是 TCP 与密钥认证成功，`handshake failed` 通常是密钥不一致。软件中心状态栏显示应用结果，实际连接情况以日志为准。
+原生版把路径替换为 `/jffs/icmp_hijack/icmp_hijack.sh`。页面当前状态在密钥认证成功后显示“已连接”；连接、认证或配置失败时显示对应当前原因。没有日志文件或历史列表。
 
 ### 5. 卸载
 
@@ -132,13 +131,13 @@ sudo bash /usr/local/lib/icmptunnel/uninstall.sh
 - **实际转发：** 完整的 IPv4 ICMP 数据报均经 TCP 投递并从服务端发出；Echo Request 建立回包映射，支持 Echo Reply 和关联 ICMP 错误。其他 ICMP 类型保持正文直接发送，不建立其回应映射；IPv4 分片被丢弃。Linux 默认 UDP traceroute、TCP traceroute 和实际业务 TCP/UDP 走原链路。这里只改变 ICMP 探测视角。
 - **IPv6：** 暂无 ICMPv6 隧道；开启期间阻断由 LAN 网桥转发的 ICMPv6，避免 IPv6 Ping 绕过。路由器本地 NDP 不受此规则影响，但 IPv6 端到端诊断和部分 PMTU 场景会受影响。测试请使用上述 IPv4 命令。
 - **包长：** TUN MTU 为 1500，常规 Ping/tracert 适用。IPv4 分片不转发；服务端 raw socket 超出出口 MTU 时回应 ICMP fragmentation-needed，并带内核报告的 MTU，不额外实现非 DF 分片。
-- **路由器内核：** 需要 TUN、iptables raw/NOTRACK、mangle MARK、addrtype 和策略路由。缺少这些能力会报错并保持丢包，日志给出定位信息。TUN 使用 `198.18.0.1/32` 作为内部地址，启用期间该地址属于路由器，不作为远端探测目标；TUN 关闭后自动移除。
+- **路由器内核：** 需要 TUN、iptables raw/NOTRACK、mangle MARK、addrtype 和策略路由。缺少这些能力会显示当前错误并保持丢包。TUN 使用 `198.18.0.1/32` 作为内部地址，启用期间该地址属于路由器，不作为远端探测目标；TUN 关闭后自动移除。
 - **配置资源：** 自有表 `18888`、规则优先级 `100`、mark 位 `0x40000000`。优先级被其他功能占用时不会删除对方规则，插件报错并保持丢包。其他插件若更早处理流量可能导致探测无法成功；正常运行和自身重载的断线保护已经验证。固件/其他程序全量清空规则后、重建回调运行前的窗口不属于本插件能保证的范围。
 - **密钥协议：** 随机 256 位 PSK、双向随机挑战与 HMAC-SHA256 认证、独立方向 AES-256-GCM 会话密钥、递增 nonce 和长度认证。不是 HTTP，也不是明文口令或 XOR；PSK 方案没有前向保密。协议详见 [设计说明](docs/protocol.md)。
 
 ## 已完成的验证
 
-1.0.6 起，路由器两份日志在运行期间每 60 秒检查，超过 256 KiB 时原地保留最后 128 KiB；控制日志每次写入后也检查。日志位于 `/tmp/icmp_hijack`，重启清空，卸载删除。周期检查允许写入突增时短暂超过阈值。
+1.0.7 不生成路由器应用日志，只在 `/tmp/icmp_hijack/status.json` 覆盖保存不超过 1 KiB 的当前状态。升级会删除旧日志；服务端 systemd 禁止应用输出写入 journal，系统自身的服务生命周期记录仍由 systemd 管理。
 
 没有连接华硕路由器实机，软件中心页面尚需你在实际固件上安装验证。已完成：
 
@@ -159,7 +158,7 @@ sudo bash /usr/local/lib/icmptunnel/uninstall.sh
 ```sh
 go test ./...
 go vet ./...
-python3 tools/release.py --version 1.0.6
+python3 tools/release.py --version 1.0.7
 ```
 
 Linux 完整网络测试需要 root，以及 `ip`、`iptables`、`ip6tables`、`ping`、`traceroute`：

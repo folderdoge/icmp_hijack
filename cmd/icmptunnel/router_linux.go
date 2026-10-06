@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -14,6 +13,10 @@ import (
 )
 
 func runRouter(cfg config) error {
+	return runRouterStatus(cfg, nil)
+}
+
+func runRouterStatus(cfg config, status *statusReporter) error {
 	key, err := wire.Key(cfg.Key)
 	if err != nil {
 		return err
@@ -29,7 +32,7 @@ func runRouter(cfg config) error {
 		return err
 	}
 	defer tun.Close()
-	log.Printf("router started interface=%s server=%s:%d (disconnected packets are dropped)", cfg.Interface, cfg.Server, cfg.Port)
+	_ = status.set("connecting", "正在连接服务器")
 	var mu sync.RWMutex
 	var active *wire.Conn
 	// A small queue absorbs normal probes; disconnected packets are discarded at
@@ -55,7 +58,7 @@ func runRouter(cfg config) error {
 		for {
 			c, err := net.DialTimeout("tcp4", net.JoinHostPort(cfg.Server, fmt.Sprint(cfg.Port)), 5*time.Second)
 			if err != nil {
-				log.Printf("connect failed: %v", err)
+				_ = status.set("connect_error", "服务器连接失败，ICMP 继续丢弃，正在自动重试")
 				time.Sleep(3 * time.Second)
 				continue
 			}
@@ -66,14 +69,18 @@ func runRouter(cfg config) error {
 			x, err := wire.Handshake(c, key, false)
 			if err != nil {
 				_ = c.Close()
-				log.Printf("handshake failed: %v", err)
+				if err.Error() == "authentication failed" {
+					_ = status.set("auth_error", "密钥认证失败，请核对两端密钥；ICMP 继续丢弃")
+				} else {
+					_ = status.set("connect_error", "握手未完成，ICMP 继续丢弃，正在自动重试")
+				}
 				time.Sleep(3 * time.Second)
 				continue
 			}
 			mu.Lock()
 			active = x
 			mu.Unlock()
-			log.Print("tunnel connected")
+			_ = status.set("connected", "已连接服务器，ICMP 隧道工作中")
 			done := make(chan struct{})
 			go func() {
 				t := time.NewTicker(5 * time.Second)
@@ -93,7 +100,7 @@ func runRouter(cfg config) error {
 			for {
 				kind, b, err := x.Receive()
 				if err != nil {
-					log.Printf("tunnel disconnected: %v", err)
+					_ = status.set("connect_error", "服务器连接中断，ICMP 继续丢弃，正在自动重连")
 					break
 				}
 				switch kind {
@@ -103,7 +110,7 @@ func runRouter(cfg config) error {
 						break
 					}
 					if _, err = tun.Write(b); err != nil {
-						log.Printf("TUN write: %v", err)
+						_ = status.set("error", "隧道回包写入失败，ICMP 继续丢弃")
 						_ = x.Close()
 					}
 				case wire.Pong:

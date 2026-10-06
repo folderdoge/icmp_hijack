@@ -14,7 +14,7 @@
 
 ## 有软件中心：离线安装
 
-在软件中心的离线安装页面上传 `icmphijack-1.0.6.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
+在软件中心的离线安装页面上传 `icmphijack-1.0.7.tar.gz`，完成安装后打开「ICMP TCP 隧道」。填写 IPv4、端口、密钥，勾选「开启 ICMP 劫持」，点击「保存并应用」。初次安装默认关闭。
 
 软件中心页面地址是 `/Module_icmphijack.asp`。程序安装在 `/koolshare/icmp_hijack/`，生成的配置位于 `/koolshare/configs/icmp_hijack.json`。配置由页面里的 dbus 参数生成，修改配置请使用页面；直接修改 JSON 会在下次应用时被覆盖。
 
@@ -38,11 +38,11 @@ icmphijack/
 
 ## 原生梅林，没有软件中心
 
-通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmphijack-1.0.6.tar.gz`，然后 SSH 执行：
+通过 SCP 或 WinSCP 把同一个安装包上传到路由器的 `/tmp/icmphijack-1.0.7.tar.gz`，然后 SSH 执行：
 
 ```sh
 cd /tmp
-tar -xzf icmphijack-1.0.6.tar.gz
+tar -xzf icmphijack-1.0.7.tar.gz
 sh /tmp/icmphijack/install.sh
 vi /jffs/icmp_hijack/config.json
 ```
@@ -95,7 +95,7 @@ traceroute -4 -I -n 123.100.97.2
 
 测试断线行为：暂时停止服务端或阻断服务器的 TCP 端口，再执行 `ping` 和 `tracert`。目标请求应超时，不能出现本地真实 WAN 的中间跳点。恢复服务端后，隧道会自动重连。
 
-## 查看状态与日志
+## 查看当前状态
 
 软件中心安装：
 
@@ -109,16 +109,9 @@ traceroute -4 -I -n 123.100.97.2
 /jffs/icmp_hijack/icmp_hijack.sh status
 ```
 
-两种方式的运行日志都在：
+两种方式均不生成应用日志或 syslog 输出。只在 `/tmp/icmp_hijack/status.json` 覆盖当前状态（小于 1 KiB），没有历史积累。升级时删除旧日志。
 
-1.0.6 起，运行中的监督进程每 60 秒检查两份日志。任一文件超过 256 KiB 时原地保留末尾 128 KiB；`control.log` 每次写入后也检查。保留原文件 inode，因此不会把持续写入的进程留在隐藏旧文件上。日志在 `/tmp` 内，重启会清空，卸载会删除；周期检查不是瞬时硬上限。
-
-```sh
-tail -n 50 /tmp/icmp_hijack/daemon.log
-tail -n 50 /tmp/icmp_hijack/control.log
-```
-
-`status` 展示启用状态、进程、策略路由和最近的隧道日志。进程运行不代表服务器已经连接；判断连接、密钥错误和重连原因时，以 `daemon.log` 为准。页面里的状态是最近一次控制操作结果。
+页面每 3 秒刷新当前状态、最近一次状态变化时间及当前原因；进程在握手认证完成后才报告“已连接”。断线和认证失败会更新对应状态，自动重试期间保持错误原因可见。`status` 命令可查看同一份快照、进程与策略路由。
 
 发生异常时可以补充检查：
 
